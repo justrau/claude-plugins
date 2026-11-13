@@ -48,7 +48,7 @@ Give the counts (posted, skipped, moot, issues), show the **final wording** of e
 
 ## 6. Summary body
 
-1. How it was reviewed: the reviewers and the range `base..head` (a later round needs it). Keep this one line even when the repository's `REVIEW.md` fixes the summary's headings.
+1. Who reviewed it, and the range `base..head` (a later round needs it). Name every reviewer by agent and model as it actually ran, and who verified the findings, for example: "Reviewed `30bc148..87ab5f3` by the second-look reviewer (Claude Opus 5.5) and Codex (`gpt-6-astra`, xhigh), each over the whole change; Claude Opus 5.5 checked every finding against the code." When one model did everything, say so ("Reviewed by Claude Opus 5.5 alone"). Take the names from what ran (the agent definition's model, the Codex command's `-m`, your own model), never from memory, and never write "two agents" without naming them. Keep this one line even when the repository's `REVIEW.md` fixes the summary's headings, and in every later round.
 2. What is right, unless the repository's `REVIEW.md` says not to list it. In a later round, the round-1 points whose fixes you verified go in one clause under the findings.
 3. What changed on the base branch under the PR, if anything, and one line on the other reviews: which points you confirm and which you disagree with (the detail is in the thread replies).
 4. The shape of the findings: counts, and how many edits they really collapse into.
