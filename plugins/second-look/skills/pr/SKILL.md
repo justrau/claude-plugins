@@ -18,7 +18,7 @@ Arguments: `$ARGUMENTS`.
 - First `git fetch origin`, so the base branch is current.
 - A PR: `gh pr view <N> --json number,title,state,author,baseRefName,baseRefOid,headRefName,headRefOid,mergeCommit,mergedAt,body,files`. Note its state: open, draft or merged.
 - **Has the current user reviewed this PR before?** `gh api repos/<owner>/<repo>/pulls/<N>/reviews --jq '.[] | select(.user.login == "<gh api user --jq .login>")'`. If so, this is a later round: read `rereview.md` now and build its ledger into the brief before any reviewer starts.
-- **Collect every existing review and comment, from everyone:** other developers, automated reviewers (bots, AI review tools) and the user. `gh api repos/<owner>/<repo>/pulls/<N>/reviews`, `.../pulls/<N>/comments --paginate` (inline threads, with whether each is resolved) and `.../issues/<N>/comments` (the PR conversation). Note each point raised, who raised it, where, and whether it was answered or fixed. They are part of what is reviewed, not noise.
+- **Collect every existing review and comment, from everyone:** other developers, automated reviewers (bots, AI review tools) and the user. `gh api repos/<owner>/<repo>/pulls/<N>/reviews`, `.../pulls/<N>/comments --paginate` (inline comments) and `.../issues/<N>/comments` (the PR conversation). Thread state and thread ids come only from GraphQL: `gh api graphql -f query='query{repository(owner:"<owner>",name:"<repo>"){pullRequest(number:<N>){reviewThreads(first:100){nodes{id isResolved isOutdated path line comments(first:1){nodes{author{login} url}}}}}}}'`. Note each point raised, who raised it, where, and whether it was answered or fixed. They are part of what is reviewed, not noise.
 - Your own branch before a PR: the range `$(git merge-base origin/<base> HEAD)..HEAD`.
 - **Diff from the merge-base, never from the base branch tip.** For a merged PR, use its base commit (`baseRefOid`, or the merge commit's first parent).
 - Never check out, stash or reset in a checkout someone else may be using. For a PR, fetch it into a **local branch** (`git fetch origin pull/<N>/head:refs/heads/pr-<N>-review --force`; a remote-tracking ref can be pruned by another session) and add a detached worktree for it, or read it with `git show`.
@@ -85,7 +85,7 @@ Read `posting.md` in this skill's directory and follow it: grade with the user, 
 
 ## 7. Clean up
 
-Remove the review worktree and the local `pr-<N>-review` branch; keep the reports where the repository's or the user's instructions say (else in the temporary directory). Close any background process you started.
+Remove the review worktree and the local `pr-<N>-review` (or `pr-<N>-rereview`) branch; keep the reports where the repository's or the user's instructions say (else in the temporary directory). Close any background process you started.
 
 ## Traps
 

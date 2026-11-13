@@ -21,7 +21,7 @@ Also add:
 
 ## 2. Grade with the user
 
-- **Where:** if the user's own instructions name a triage tool or page, use it. Otherwise triage in chat: present the items in severity order, each with the grade choices on one line, and let the user answer with item ID and grade.
+- **Where:** if the user's own instructions name a triage tool, page or skill, use it (load the skill). Otherwise triage in chat: present the items in severity order, each with the grade choices on one line, and let the user answer with item ID and grade.
 - **Default grades:** 1 Blocking · 2 Should fix · 3 Minor · 4 Minor, to think about · 5 Skip. Skip means not posted.
 - Label items with their IDs, never a Markdown ordered list that starts mid-way: renderers renumber `4. 5. 6.` to `1. 2. 3.`, and the user's "6" then means another item.
 - **Expect a design question instead of a grade** ("why not serve it from the CDN?"). Answer it from the code, then ask again. One decision can make other items moot; record those as "not posted, made moot by T1".
@@ -34,7 +34,7 @@ Give the counts (posted, skipped, moot, issues), show the **final wording** of e
 
 ## 4. Comment shape and tone
 
-- **First line, bold:** the grade label and the claim, for example `**Should fix: the retry loses the original error.**`. The verb carries the kind: "Confirm …", "Consider …". When the repository's `REVIEW.md` defines its own label or tag (for example `**[BLOCKING]**`), it **replaces** the grade label.
+- **First line, bold:** the grade label and the claim, for example `**Should fix: the retry loses the original error.**`. The verb carries the kind: "Confirm …", "Consider …". When the repository's `REVIEW.md` defines its own label or tag (for example `**[BLOCKING]**`), it **replaces** the grade label. A reply that asks for a change carries a grade label too; a reply that only agrees or answers does not.
 - Then prose with the concrete failure scenario, the neighbouring code that already does it right (`path:line`), and the suggested fix.
 - *Italic asides* for context that is explicitly not a request.
 - Neutral and factual: no "please", no softening, no exclamation marks. Credit what is right in the summary.
@@ -63,7 +63,7 @@ Answers to questions from the PR conversation are replies in that conversation, 
 **Order, so every link exists when it is written:**
 1. Open the out-of-scope issues (`gh issue create`). Title states the problem; body has the failure scenario and fix in the same short form as a comment, and a line "Found while reviewing [PR #N](url)". No assignee or labels unless the user names them. Note their numbers.
 2. Post the review: one request, so it is one notification.
-3. Post each conversation reply where the question was asked: a PR-level question on `repos/<owner>/<repo>/issues/<N>/comments`; a question in an inline review thread as a reply in that thread (`POST repos/<owner>/<repo>/pulls/<N>/comments/<comment id>/replies`). Link the inline comment or issue from steps 1–2.
+3. Post each conversation reply where the question was asked: a PR-level question on `repos/<owner>/<repo>/issues/<N>/comments`; a question in an inline review thread as a reply in that thread (`POST repos/<owner>/<repo>/pulls/<N>/comments/<comment id>/replies`). Link the inline comment or issue from steps 1–2; the new inline comments' URLs come from `gh api repos/<owner>/<repo>/pulls/<N>/comments --jq '.[] | select(.pull_request_review_id == <review id>) | .html_url'` after step 2.
 
 **Mechanics:**
 - Build the payload with a script (triple-quoted strings and `json.dump`); hand-escaped JSON is where this goes wrong. Payload: `{commit_id, event, body, comments: [{path, line, side: "RIGHT", body}]}`.
