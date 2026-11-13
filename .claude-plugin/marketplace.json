@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "justrau",
+  "description": "Claude Code plugins by justrau",
+  "owner": {
+    "name": "justrau"
+  },
+  "plugins": [
+    {
+      "name": "second-look",
+      "description": "A second look at your code: a read-only reviewer that scales its depth to the risk of the change, checks the other side of cross-repo changes, and verifies every finding; plus skills to review a PR end to end and to write a project's REVIEW.md.",
+      "author": {
+        "name": "justrau"
+      },
+      "source": "./plugins/second-look",
+      "category": "productivity",
+      "homepage": "https://github.com/justrau/claude-plugins/tree/main/plugins/second-look"
+    }
+  ]
+}

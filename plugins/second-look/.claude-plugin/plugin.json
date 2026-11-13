@@ -1,0 +1,9 @@
+{
+  "name": "second-look",
+  "description": "A second look at your code: risk-scaled, read-only code review with verified findings, plus PR review and REVIEW.md skills.",
+  "author": {
+    "name": "justrau"
+  },
+  "homepage": "https://github.com/justrau/claude-plugins/tree/main/plugins/second-look",
+  "license": "MIT"
+}
