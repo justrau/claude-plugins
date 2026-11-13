@@ -53,6 +53,7 @@ plugins/second-look/
   skills/pr/SKILL.md                     skill; installed as /second-look:pr
   skills/pr/posting.md                   grading and posting a review of someone else's PR
   skills/pr/rereview.md                  a later round on an already-reviewed PR
+  skills/pr/check_anchors.py             checks a review payload's inline anchors before posting
   skills/guide/SKILL.md                  skill; installed as /second-look:guide
 ```
 
