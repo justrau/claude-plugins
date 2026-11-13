@@ -70,7 +70,7 @@ When a user asks you to copy these files rather than install the plugin:
   - **Deep:** auth, sessions, crypto; money; data writes and migrations; concurrency, queues, schedules; external APIs and webhooks; infrastructure, CI/CD, secrets; public contracts; switching a feature on in production.
 - **Method.** It verifies every finding in the code (CONFIRMED or PLAUSIBLE) and tries to refute it first. It treats the PR description as claims to prove, follows the callers of changed shared code, and asks what is missing and what happens on deploy, rollback and switch-on.
 - **Checklist.** A 13-area checklist at Standard and Deep, with "n/a" for areas that don't apply.
-- **Report.** Depth and the guides read; findings with severity, `path:line`, a failure scenario and a fix; clean bills; "declined to judge"; nits; a one-line verdict.
+- **Report.** Depth and the guides read; findings with severity, `path:line`, a failure scenario and a fix; clean bills; questions for the author; "declined to judge"; nits; a one-line verdict.
 - **Read-only.** It never edits, commits, pushes or posts.
 
 ### REVIEW.md
