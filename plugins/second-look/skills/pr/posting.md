@@ -16,6 +16,7 @@ Also add:
 - One item per **question for the author**, with the draft question.
 - One item per **question someone asked in the PR conversation**, a person or a bot: a draft reply of a few lines that answers it and links the comment or issue holding the detail. These get their own reply, not a line buried in the summary. Note whether the question is in an inline review thread or at PR level; the reply goes to the same place (section 7).
 - In a later round, one item per **author pushback you re-checked**, with your ruling (the decline stands, or the point is raised again).
+- One item per **point another reviewer raised that is worth attention** (a developer, a bot or an AI review tool): a draft reply in its thread that says whether it is correct and important (with evidence, or what to add), or why it is wrong. Routine points that need no answer get no item. Never post a new comment that repeats an existing point; reply to it instead.
 - One item for the **review event** (section 5) and the summary.
 
 ## 2. Grade with the user
@@ -49,7 +50,7 @@ Give the counts (posted, skipped, moot, issues), show the **final wording** of e
 
 1. How it was reviewed: the reviewers and the range `base..head` (a later round needs it). Keep this one line even when the repository's `REVIEW.md` fixes the summary's headings.
 2. What is right, unless the repository's `REVIEW.md` says not to list it. In a later round, the round-1 points whose fixes you verified go in one clause under the findings.
-3. What changed on the base branch under the PR, if anything.
+3. What changed on the base branch under the PR, if anything, and one line on the other reviews: which points you confirm and which you disagree with (the detail is in the thread replies).
 4. The shape of the findings: counts, and how many edits they really collapse into.
 5. Follow-ups on our side, so the author does not act on them.
 6. Questions that need a decision rather than a code change.

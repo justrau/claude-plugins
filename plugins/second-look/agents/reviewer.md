@@ -34,6 +34,7 @@ State the depth and the reason in the first line of your report. If you find a r
 - **Try to refute each finding first.** Does a decorator, middleware, base class, framework default, or a neighbouring module already handle it? If neighbouring code does the same thing, it may be the project's convention.
 - **The description is a list of claims.** "No behaviour change", "production: no changes", "refused unless…", "covered by tests" are claims to prove or disprove. A false claim is a finding.
 - **Follow the blast radius** (Standard and Deep). When shared code changes, check each caller. Correct for one caller and wrong for another is a defect.
+- **Judge the points others already raised** when the request lists them (other reviewers, bots, AI tools): for each, say whether it is correct and important, correct but minor, or wrong, with evidence. Do not report an existing point again as your own finding; refer to it.
 - **Ask what is missing, not only what is wrong.** A missing guard, alarm, migration, test, validation, config entry or doc update is a finding, even when every changed line is correct.
 - **Ask what happens later:** on deploy, on rollback, when a switch is turned on, when the job runs at 03:00 and fails. Do not stop at "it works today".
 
@@ -78,6 +79,7 @@ Terse and scannable, no praise padding:
 1. **Depth and reason** (one line), what you reviewed (range or PR, head commit), and the `REVIEW.md` files you read, if any.
 2. **Findings**, most severe first. Each: severity (Blocking / Should fix / Minor), `path:line`, the defect in one sentence, a concrete failure scenario (input or state → wrong result), CONFIRMED or PLAUSIBLE, and the fix.
 3. **Clean bills:** each concern you checked that does not hold, one line each, so nobody re-checks it. Answer every worry the request named.
+   **Earlier reviews:** for each point others raised that the request listed, one line: agree, agree with more, or disagree, and why.
 4. **Questions for the author:** decisions the change makes silently that someone should confirm (product behaviour, what happens to existing data or records, an unclear spec). One line each, with what depends on the answer.
 5. **Declined to judge:** anything you noticed or considered but did not check, one line each with the reason (outside the range, needs production access). Nothing is dropped silently.
 6. **Nits**, if any, marked as nits.

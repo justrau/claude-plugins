@@ -17,7 +17,8 @@ Arguments: `$ARGUMENTS`.
 
 - First `git fetch origin`, so the base branch is current.
 - A PR: `gh pr view <N> --json number,title,state,author,baseRefName,baseRefOid,headRefName,headRefOid,mergeCommit,mergedAt,body,files`. Note its state: open, draft or merged.
-- **Has the current user reviewed this PR before?** `gh api repos/<owner>/<repo>/pulls/<N>/reviews --jq '.[] | select(.user.login == "<gh api user --jq .login>")'`. If so, this is a later round: read `rereview.md` now and build its ledger into the brief before any reviewer starts. Ignore automated reviews (bots) unless they ask a question that needs an answer.
+- **Has the current user reviewed this PR before?** `gh api repos/<owner>/<repo>/pulls/<N>/reviews --jq '.[] | select(.user.login == "<gh api user --jq .login>")'`. If so, this is a later round: read `rereview.md` now and build its ledger into the brief before any reviewer starts.
+- **Collect every existing review and comment, from everyone:** other developers, automated reviewers (bots, AI review tools) and the user. `gh api repos/<owner>/<repo>/pulls/<N>/reviews`, `.../pulls/<N>/comments --paginate` (inline threads, with whether each is resolved) and `.../issues/<N>/comments` (the PR conversation). Note each point raised, who raised it, where, and whether it was answered or fixed. They are part of what is reviewed, not noise.
 - Your own branch before a PR: the range `$(git merge-base origin/<base> HEAD)..HEAD`.
 - **Diff from the merge-base, never from the base branch tip.** For a merged PR, use its base commit (`baseRefOid`, or the merge commit's first parent).
 - Never check out, stash or reset in a checkout someone else may be using. For a PR, fetch it into a **local branch** (`git fetch origin pull/<N>/head:refs/heads/pr-<N>-review --force`; a remote-tracking ref can be pruned by another session) and add a detached worktree for it, or read it with `git show`.
@@ -31,9 +32,10 @@ The brief is the reviewer's only context besides the code. Write it to a file in
 1. The range or PR, head SHA, base branch, the PR description (or, for your own branch, what the change is for), and anything from section 1 that changed on the base.
 2. The review guides: every `REVIEW.md` from the repository root down to the changed files' directories, plus the root `REVIEW.md` of each sibling repository the change touches.
 3. **What the change touches outside its own repository.** For each: the other repository's local path and the files to check there (config validation, runbook or spec preconditions, published metrics, deploy workflow, API consumers). A diff-only review cannot do this.
-4. Any worry you already have, and anything you already confirmed, so it is not re-derived.
-5. What the reviewer may run: follow the repository's `REVIEW.md` or `AGENTS.md`. When the dev environment does not point at the review checkout (for example a container that mounts the main checkout), tests are assessed by reading. Read-only cloud CLI only if the user allows it and names the profile. Say explicitly whether `gh` reads and web lookups are allowed, so every reviewer works from the same evidence, and ask reviewers to report the tool versions they ran rather than stating them.
-6. **Prepare what a read-only reviewer cannot:** an environment the review guide asks for (a venv, a tool version), and the **pinned source of a dependency the change relies on** when it is not installed: download that exact version (from the lockfile) into a scratch directory, check it against the lockfile's integrity hash, and name the path in the brief (read it, never run it).
+4. **The points others already raised** (from section 1), each with its author and location, and the instruction to judge every one: correct and important (add evidence if useful), correct but minor, or wrong (and why). A reviewer does not report a point again as its own finding; it refers to the existing one.
+5. Any worry you already have, and anything you already confirmed, so it is not re-derived.
+6. What the reviewer may run: follow the repository's `REVIEW.md` or `AGENTS.md`. When the dev environment does not point at the review checkout (for example a container that mounts the main checkout), tests are assessed by reading. Read-only cloud CLI only if the user allows it and names the profile. Say explicitly whether `gh` reads and web lookups are allowed, so every reviewer works from the same evidence, and ask reviewers to report the tool versions they ran rather than stating them.
+7. **Prepare what a read-only reviewer cannot:** an environment the review guide asks for (a venv, a tool version), and the **pinned source of a dependency the change relies on** when it is not installed: download that exact version (from the lockfile) into a scratch directory, check it against the lockfile's integrity hash, and name the path in the brief (read it, never run it).
 
 Do not tell the reviewer how deep to go; it sizes the change itself. Do tell it if you know the change is risky.
 
@@ -56,6 +58,7 @@ Start the reviewer agent with the brief, in the background. When its report arri
 - Read the code behind every Blocking or Should-fix finding yourself, and behind any claim about a library or an external API (check the pinned dependency source and the vendor's spec, not memory). Mark each finding **confirmed**, **corrected** (a convention, a neighbour or a framework default explains it) or **wrong**.
 - With two reviewers: a finding both reached independently is strong. Where they disagree, decide from the code and say why; never average them. Name the source of each finding (Claude, Codex, both, you).
 - Rule on each "declined to judge" line and each question for the author: drop it, keep it as a finding, or keep it as a question.
+- Rule on each point others raised: agree, agree with more detail, or disagree with the reason. Where your finding is the same as an earlier one, it becomes a reply in that thread, not a new comment.
 - Keep a findings file next to the brief (item, evidence, source, verdict), so a long triage survives context compaction.
 
 ## 5. Choose the ending
@@ -67,8 +70,9 @@ Start the reviewer agent with the brief, in the background. When its report arri
 
 1. Report the verified findings briefly: severity, `path:line`, what goes wrong, the fix. Then the questions for the author, if any.
 2. Fix the confirmed Blocking and Should-fix findings on the branch, following the repository's own rules (tests that can fail, its checks and guard tests). Where a finding has more than one reasonable fix, take the one that follows the repository's existing convention and say which you chose. List Minor findings and nits as one line each; fix them only if they are trivial or the user asks.
-3. Questions: record product or client questions where the repository says (for example a client-questions document named in `REVIEW.md` or `AGENTS.md`). Ask the user only what has no such place and needs a decision (product behaviour, data, money, production, security). When a safe default exists, build it and do not block the fix on the answer.
-4. One re-review of the changed lines only, with the original findings as the brief. Stop after two rounds and report what is still open.
+3. Points others raised on your PR (developers, bots, AI tools): fix the ones the verification found correct, and draft a short reply for each, including why a point is not taken when it is wrong. Show the replies to the user; post them only on the user's yes.
+4. Questions: record product or client questions where the repository says (for example a client-questions document named in `REVIEW.md` or `AGENTS.md`). Ask the user only what has no such place and needs a decision (product behaviour, data, money, production, security). When a safe default exists, build it and do not block the fix on the answer.
+5. One re-review of the changed lines only, with the original findings as the brief. Stop after two rounds and report what is still open.
 
 ### Post mode
 
