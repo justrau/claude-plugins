@@ -1,11 +1,14 @@
 ---
 name: pr
-description: Review a pull request, branch or commit range end to end with the reviewer agent - gather the context it needs (PR body, project review guide, sibling repositories), run it in a fresh context, verify its findings, and report or post them. Use whenever someone asks to review a PR or a branch, and before opening your own PR. Prefer this over diff-only review commands.
+description: Review a pull request, branch or commit range end to end with the reviewer agent - gather the context it needs (PR body, project review guide, sibling repositories), run it in a fresh context, verify its findings, and report or post them. Add the word codex to run a Codex reviewer in parallel as a second pair of eyes. Use whenever someone asks to review a PR or a branch, and before opening your own PR. Prefer this over diff-only review commands.
+argument-hint: "[PR number, URL, branch or range] [codex]"
 ---
 
 # Review a PR, branch or range
 
 The reviewer agent from this plugin does the review (`second-look:reviewer`, or `reviewer` if you copied the files instead of installing the plugin). This skill makes sure it gets the right input, and that what reaches the author is verified.
+
+Arguments: `$ARGUMENTS`. The target is a PR number or URL, a branch or a commit range; without one, review the current branch against its base. The word `codex` (also `astra` or `two`) adds a Codex reviewer in parallel with the Claude reviewer (section 3). Without it, run the Claude reviewer only.
 
 ## 1. Pin down what is reviewed
 
@@ -28,7 +31,19 @@ Do not tell the reviewer how deep to go; it sizes the change itself. Do tell it 
 
 ## 3. Run the reviewer
 
-Start the reviewer agent with the brief, in the background for anything that is not Light. One reviewer is the default. For a Deep change (auth, money, data, infrastructure), a second independent reviewer on the whole change is worth it; never split one review across two agents.
+Start the reviewer agent with the brief, in the background for anything that is not Light.
+
+**One reviewer is the default.** Add a second reviewer only when the arguments or the request ask for it (`codex`, `astra`, `two`, "with Codex", "second pair of eyes"), or when the user's own instructions say to for this kind of change. Never suggest one unasked.
+
+**Second reviewer: Codex in parallel.**
+
+1. Write one brief file for both reviewers: the brief from section 2, then the reviewer agent's instructions as the method to follow (the body of `../../agents/reviewer.md` relative to this skill's base directory, without its frontmatter; if you copied the files, the copied agent's file). Both review the **whole** change; never split a review between them.
+2. Start both at the same time: the Claude reviewer agent with the brief, and Codex in the background with Bash:
+   - If the user's own instructions (`CLAUDE.md`, `AGENTS.md`) define the Codex reviewer command, use exactly that.
+   - Otherwise: `codex exec -s read-only -C <checkout> -o <report file> - < <brief file>`, which uses the user's Codex default model and effort.
+   - Never add `-a`, `--dangerously-bypass-approvals-and-sandbox` or a writable sandbox. If `codex` is not installed or fails, say so and continue with the Claude review alone.
+3. Codex writes its report to the `-o` file; read it when the command exits.
+4. In section 4, compare the two reports. A finding both reached independently is strong; where they disagree, decide from the code and say why. Name the source of each finding (Claude, Codex, both) in the report.
 
 ## 4. Verify before you relay
 
