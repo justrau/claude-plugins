@@ -36,7 +36,15 @@ Never read `.env` or other secret-bearing files. Never write secret values, host
 
 ## What a reviewer may run here
 - <commands, or "read only, because …">
+
+## Posting reviews here (optional: only conventions the team has agreed)
+- Grade labels and the first-line format of a comment
+- Review event rule, if it differs from the plugin default
+- What goes into an issue instead of a review comment
+- Where product or client questions go
 ```
+
+The posting section holds team conventions only. Keep personal workflow out of it (one person's triage tool, where they file their notes, which second reviewer they use): that belongs in that person's own instructions.
 
 Then add one line to `AGENTS.md` (or `CLAUDE.md` if that is the project's file): "Code reviews: read `REVIEW.md`." Propose the change as a small PR of its own, following the repository's PR rules.
 
