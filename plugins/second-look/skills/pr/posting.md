@@ -1,0 +1,74 @@
+# Post mode: grade, draft, post
+
+For someone else's PR. Nothing is posted, and no issue is opened, until the user has approved the final wording. Grading an item is not approval to post it.
+
+The defaults below apply unless the repository's `REVIEW.md` has a "Posting reviews here" section, or the user's own instructions say otherwise; those win.
+
+## 1. Prepare one triage item per finding
+
+Each item carries:
+- An ID (`T1`, `T2`, …), the finding in one line, `path:line`, the failure scenario, the fix, confirmed or plausible, and its source (Claude, Codex, both, you).
+- **A draft of the comment's first line** in house style (section 4).
+- **A proposed destination with one line of why:** a review comment when the finding is within the PR's task; a separate issue when it is outside it but surfaced by the PR, or when it is about the whole repository rather than this PR.
+- **A recommendation:** the grade you propose and why, ideally compared with how the user graded the same kind of point before.
+
+Also add:
+- One item per **question for the author**, with the draft question.
+- One item per **question someone asked in the PR conversation**: a draft reply of a few lines that answers it and links the comment or issue holding the detail. These get their own reply, not a line buried in the summary.
+- One item for the **review event** (section 5) and the summary.
+
+## 2. Grade with the user
+
+- **Where:** if the user's own instructions name a triage tool or page, use it. Otherwise triage in chat: present the items in severity order, each with the grade choices on one line, and let the user answer with item ID and grade.
+- **Default grades:** 1 Blocking · 2 Should fix · 3 Minor · 4 Minor, to think about · 5 Skip. Skip means not posted.
+- Label items with their IDs, never a Markdown ordered list that starts mid-way: renderers renumber `4. 5. 6.` to `1. 2. 3.`, and the user's "6" then means another item.
+- **Expect a design question instead of a grade** ("why not serve it from the CDN?"). Answer it from the code, then ask again. One decision can make other items moot; record those as "not posted, made moot by T1".
+- The user's note on an item overrides your draft wording.
+- Record every decision and wording instruction in the findings file as it happens.
+
+## 3. Close triage
+
+Give the counts (posted, skipped, moot, issues), show the **final wording** of every comment, issue and reply, and the review event. Ask once whether to post. Post only after a clear yes.
+
+## 4. Comment shape and tone
+
+- **First line, bold:** the grade label and the claim, for example `**Should fix: the retry loses the original error.**`. The verb carries the kind: "Confirm …", "Consider …".
+- Then prose with the concrete failure scenario, the neighbouring code that already does it right (`path:line`), and the suggested fix.
+- *Italic asides* for context that is explicitly not a request.
+- Neutral and factual: no "please", no softening, no exclamation marks. Credit what is right in the summary.
+
+## 5. Review event
+
+- Any **Blocking** item → `REQUEST_CHANGES`. It is sticky until a later review, so never use it for Should fix.
+- No Blocking item → `APPROVE`, with the findings as comments and one summary line on what the approval covers ("nothing blocking; the should-fix points can land here or in a follow-up PR").
+- A draft, merged or closed PR, or a review that only asks questions → `COMMENT`.
+- Approve only the head commit you reviewed. If the head moved, review the new commits first.
+
+## 6. Summary body
+
+1. How it was reviewed: the reviewers and the range `base..head` (a later round needs it).
+2. What is right.
+3. What changed on the base branch under the PR, if anything.
+4. The shape of the findings: counts, and how many edits they really collapse into.
+5. Follow-ups on our side, so the author does not act on them.
+6. Questions that need a decision rather than a code change.
+7. The issues opened for out-of-scope findings, one line each with its link.
+
+Answers to questions from the PR conversation are replies in that conversation, not part of the summary.
+
+## 7. Post
+
+**Order, so every link exists when it is written:**
+1. Open the out-of-scope issues (`gh issue create`). Title states the problem; body has the failure scenario and fix in the same short form as a comment, and a line "Found while reviewing [PR #N](url)". No assignee or labels unless the user names them. Note their numbers.
+2. Post the review: one request, so it is one notification.
+3. Post each conversation reply on `repos/<owner>/<repo>/issues/<N>/comments`, linking the inline comment or issue from steps 1–2.
+
+**Mechanics:**
+- Build the payload with a script (triple-quoted strings and `json.dump`); hand-escaped JSON is where this goes wrong. Payload: `{commit_id, event, body, comments: [{path, line, side: "RIGHT", body}]}`.
+- `commit_id` is the head you reviewed (for a merged PR, its last head commit).
+- `line` is the line at head and must sit inside a diff hunk: check every anchor against `git diff -U0 <base>...<head>` first. A finding about an untouched file is anchored at the nearest changed line where the fix belongs, or goes in the summary.
+- `gh api repos/<owner>/<repo>/pulls/<N>/reviews --method POST --input review.json --jq '"\(.state) id=\(.id) \(.html_url)"'`, then check `gh api repos/<owner>/<repo>/pulls/<N>/comments --jq length`.
+- PR-level comments live on the issues endpoint; `pulls/<N>/comments` returns only inline comments.
+- A merged PR can still take a review: ask for follow-ups in a new PR instead of changes "in this PR". Removing something from history after a merge means a rewrite and a force push; say so instead of asking for it lightly.
+
+Then record what was posted (the review URL, the issue numbers) where the user's or the repository's instructions say.

@@ -33,6 +33,9 @@ That's fine. Everything here is plain Markdown. Point your own Claude Code sessi
 ### Use
 
 - Ask "review this PR" or "review my branch", or run `/second-look:pr <PR URL or number>`.
+  - **Your own change:** it verifies the findings and fixes them on your branch.
+  - **Someone else's PR:** it grades the findings with you, drafts the comments, and posts one GitHub review after you approve the wording. A project's `REVIEW.md` can set its own grade labels and posting rules.
+  - Add `codex` to run a Codex reviewer in parallel, for example `/second-look:pr 133 codex`.
 - Ask "write a REVIEW.md for this repo", or run `/second-look:guide`.
 - Claude can also start the reviewer by itself, for example before opening a pull request.
 
@@ -48,6 +51,8 @@ plugins/second-look/
   .claude-plugin/plugin.json
   agents/reviewer.md                     subagent; installed as second-look:reviewer
   skills/pr/SKILL.md                     skill; installed as /second-look:pr
+  skills/pr/posting.md                   grading and posting a review of someone else's PR
+  skills/pr/rereview.md                  a later round on an already-reviewed PR
   skills/guide/SKILL.md                  skill; installed as /second-look:guide
 ```
 
