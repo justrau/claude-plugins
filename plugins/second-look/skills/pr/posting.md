@@ -34,7 +34,7 @@ Give the counts (posted, skipped, moot, issues), show the **final wording** of e
 
 ## 4. Comment shape and tone
 
-- **First line, bold:** the grade label and the claim, for example `**Should fix: the retry loses the original error.**`. The verb carries the kind: "Confirm …", "Consider …". When the repository's `REVIEW.md` defines its own label or tag (for example `**[BLOCKING]**`), it **replaces** the grade label. A reply that asks for a change carries a grade label too; a reply that only agrees or answers does not.
+- **First line, an H1 heading** (`# `), never bold text: the grade label and the claim, for example `# Should fix: the retry loses the original error.`. The verb carries the kind: "Confirm …", "Consider …". When the repository's `REVIEW.md` defines its own label or tag (for example `[BLOCKING]`), it **replaces** the grade label in the heading (`# [BLOCKING] The retry loses the original error.`). A reply that asks for a change gets the same heading; a reply that only agrees or answers has no heading.
 - Then prose with the concrete failure scenario, the neighbouring code that already does it right (`path:line`), and the suggested fix.
 - *Italic asides* for context that is explicitly not a request.
 - Neutral and factual: no "please", no softening, no exclamation marks. Credit what is right in the summary.
