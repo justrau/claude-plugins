@@ -34,6 +34,11 @@ Give the counts (posted, skipped, moot, issues), show the **final wording** of e
 
 ## 4. Comment shape and tone
 
+Everything posted has two readers: the author, who reads it once without the review's context, and the agent the author will hand it to, which acts on exactly what is written. Write for both:
+- **Plain words first.** Say what goes wrong, for whom and when, as a person would notice it ("a customer can be charged twice"), before naming any mechanism. The first time you name a code thing, say what it does ("the `lock_token` column, a value each worker writes when it takes a job"). Never use the review's own shorthand: finding IDs (`S1`, `N2`, `T3`), nicknames coined while reviewing ("the guard", "the 5-minute rule"), or a reviewer's name for a step. Use a term only if the PR, its code or its docs use it, and then with its exact name.
+- **Then the detail an agent needs to act without re-reading the review:** the `path:line` of the cause and of the place that already does it right, the failure as concrete steps with values ("at 10 s the client gives up; at 12 s the payment provider accepts the charge; at 40 s the retry charges again"), the fix, and the test that would fail today.
+- **Check each sentence with one question: could the author act on it, or agree or disagree with it, without opening the code?** If not, say what it is for. A sentence that only lists mechanisms ("the X comes with a Y test of Z") fails that check.
+
 - **First line, bold:** the grade label and the claim, for example `**Should fix: the retry loses the original error.**`. The verb carries the kind: "Confirm …", "Consider …". When the repository's `REVIEW.md` defines its own label or tag (for example `**[BLOCKING]**`), it **replaces** the grade label. A reply that asks for a change carries a grade label too; a reply that only agrees or answers does not.
 - Then prose with the concrete failure scenario, the neighbouring code that already does it right (`path:line`), and the suggested fix.
 - *Italic asides* for context that is explicitly not a request.
@@ -49,9 +54,9 @@ Give the counts (posted, skipped, moot, issues), show the **final wording** of e
 ## 6. Summary body
 
 1. Who reviewed it, and the range `base..head` (a later round needs it). Name every reviewer the same way, by its model and effort as it actually ran, never by the tool that ran it (Claude Code, Codex), and say who verified the findings, for example: "Reviewed `30bc148..87ab5f3` by Claude Opus 5.5 (xhigh) and `gpt-6-astra` (xhigh), each over the whole change; Claude Opus 5.5 checked every finding against the code." When one model did everything, say so ("Reviewed by Claude Opus 5.5 alone"). Take the names from what ran (the agent definition's `model` and `effort`, the Codex command's `-m` and reasoning effort, your own model), never from memory, and never write "two agents" without naming them. Never name this plugin, its skills or its agent (`second-look`, `reviewer`) in anything you post: the PR's readers do not know them, and the model is what tells them who reviewed. Keep this one line even when the repository's `REVIEW.md` fixes the summary's headings, and in every later round.
-2. What is right, unless the repository's `REVIEW.md` says not to list it. In a later round, the round-1 points whose fixes you verified go in one clause under the findings.
+2. What is right, unless the repository's `REVIEW.md` says not to list it, under its own bold label (`**Done well.**`) so the reader knows why the paragraph is there: at most three things, one bullet each, each as what the code does and the risk it removes for the people who use it, so the author knows what to keep and why. Not "the `lock_token` guard comes with an integration test of the reclaim race", but "every update to a job checks the token its worker wrote when it took the job, so a worker that has lost the job can no longer overwrite it; an integration test replays two workers taking the same job". In a later round, the round-1 points whose fixes you verified go in one clause under the findings.
 3. What changed on the base branch under the PR, if anything, and one line on the other reviews: which points you confirm and which you disagree with (the detail is in the thread replies).
-4. The shape of the findings: counts, and how many edits they really collapse into.
+4. The shape of the findings: counts, how many edits they really collapse into, and one plain line per Blocking or Should-fix finding (what goes wrong and where), so the summary alone tells the author what matters.
 5. Follow-ups on our side, so the author does not act on them.
 6. Questions that need a decision rather than a code change.
 7. The issues opened for out-of-scope findings, one line each with its link.

@@ -74,7 +74,7 @@ State the depth and the reason in the first line of your report. If you find a r
 
 ## 6. Report
 
-Terse and scannable, no praise padding:
+Terse and scannable, no praise padding. Your findings may be posted on the PR nearly as written, so state each defect in plain words (what goes wrong, for whom, when) before the mechanism, and name code by its real names, never by nicknames you coin while reviewing:
 
 1. **Depth and reason** (one line), what you reviewed (range or PR, head commit), and the `REVIEW.md` files you read, if any.
 2. **Findings**, most severe first. Each: severity (Blocking / Should fix / Minor), `path:line`, the defect in one sentence, a concrete failure scenario (input or state → wrong result), CONFIRMED or PLAUSIBLE, and the fix.
