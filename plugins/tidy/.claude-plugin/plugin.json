@@ -1,0 +1,9 @@
+{
+  "name": "tidy",
+  "description": "Behaviour-preserving cleanup of your changes, a PR, a branch or a path, run only when you ask: applies small simplifications that tests guard, proposes the rest; cleanups of committed code get their own commit, cleanups in uncommitted files stay uncommitted.",
+  "author": {
+    "name": "justrau"
+  },
+  "homepage": "https://github.com/justrau/claude-plugins/tree/main/plugins/tidy",
+  "license": "MIT"
+}

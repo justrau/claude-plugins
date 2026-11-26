@@ -39,6 +39,35 @@ That's fine. Everything here is plain Markdown. Point your own Claude Code sessi
 - Ask "write a REVIEW.md for this repo", or run `/second-look:guide`.
 - Claude can also start the reviewer by itself, for example before opening a pull request.
 
+## tidy
+
+A cleanup pass for your changes that only runs when you ask for it. It makes the code you changed simpler to read and change, without changing what it does:
+
+- **stays in scope.** It edits only lines your local work, branch or PR adds or changes (a path narrows that). Problems in older code are proposed, not edited. Cleanups in files you have not committed yet stay uncommitted, next to your edits.
+- **keeps behaviour.** Outputs, errors, side effects and their order, public contracts, queries and user-visible text stay the same. It never removes a safety check.
+- **lets tests guard it.** It runs the narrowest tests after each change, adds a test that pins today's behaviour where none exists and proves it can fail, and never edits a test to get a pass.
+- **applies the safe part, proposes the rest.** Small, test-guarded simplifications of committed code go into their own `Tidy:` commit; performance, design and contract changes come back as numbered proposals you pick from.
+
+It is not a bug hunt (use a reviewer for that) and not a style pass.
+
+### Install
+
+```
+/plugin marketplace add justrau/claude-plugins
+/plugin install tidy@justrau
+```
+
+### Use
+
+- Run `/tidy:changes`, or ask "tidy my changes". With no argument it tidies your local work: uncommitted and staged changes plus the branch's commits against its base.
+- Name something else to tidy: a PR number or URL, a branch or a commit range, for example `/tidy:changes 42`. A path narrows the scope to that folder or file, for example `/tidy:changes src/billing`.
+- Add `report` to change nothing and get proposals only, for example `/tidy:changes 42 report`.
+- Pick proposals afterwards with "apply 2, 4" or "apply all".
+- Cleanups of committed code get a `Tidy:` commit on your branch (never on the default branch). Cleanups in files you have not committed stay uncommitted, and it tells you how to restore those files. Your reviewer agent, if you have one (for example `second-look:reviewer`), reviews every edit. It pushes and adds one line to the PR description only when you ask for a push or your instructions say to push.
+- Its description tells Claude to start it only when you ask. Claude Code's built-in `/simplify` is a different command: it applies fixes to the diff directly, without the test and scope rules above.
+
+Credits for the ideas and phrasing it borrows are in [plugins/tidy/CREDITS.md](plugins/tidy/CREDITS.md).
+
 ---
 
 ## For agents
@@ -55,6 +84,10 @@ plugins/second-look/
   skills/pr/rereview.md                  a later round on an already-reviewed PR
   skills/pr/check_anchors.py             checks a review payload's inline anchors before posting
   skills/guide/SKILL.md                  skill; installed as /second-look:guide
+plugins/tidy/
+  .claude-plugin/plugin.json
+  skills/changes/SKILL.md                skill; installed as /tidy:changes
+  CREDITS.md                             sources the skill borrows from, with their licences
 ```
 
 ### Copying instead of installing
@@ -67,6 +100,8 @@ When a user asks you to copy these files rather than install the plugin:
 4. The reviewer's frontmatter pins `model: claude-opus-5-5` and `effort: xhigh`. Keep them unless the user says otherwise.
 5. For one project only, copy into that project's `.claude/agents/` and `.claude/skills/` instead of `~/.claude/`.
 6. Tell the user the final names and how to call them.
+
+These steps are for `second-look`. To copy `tidy`, copy only `plugins/tidy/skills/changes/` to `~/.claude/skills/tidy-changes/`, with `plugins/tidy/CREDITS.md` next to its `SKILL.md`. Set the `name:` field to `tidy-changes` and replace `/tidy:changes` in its description and text with `/tidy-changes`. Do not name it `simplify`: Claude Code has a built-in skill of that name.
 
 ### How the reviewer works
 
