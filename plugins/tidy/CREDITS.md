@@ -1,6 +1,6 @@
 # Credits
 
-The `tidy:pr` skill is written fresh. It takes ideas, and in places close phrasing, from these sources:
+The `tidy:changes` skill is written fresh. It takes ideas, and in places close phrasing, from these sources:
 
 - **[ce-simplify-code](https://github.com/EveryInc/compound-engineering-plugin/tree/main/skills/ce-simplify-code)** in EveryInc/compound-engineering-plugin (MIT): resolving scope from a named target or the branch against its base; the list of behaviour to keep and safety checks never to remove; report-first with numbered findings that the user picks and that are re-checked before applying; separate defects from simplifications; verification by blast radius.
 - **[code-simplification](https://github.com/addyosmani/agent-skills/tree/main/skills/code-simplification)** in addyosmani/agent-skills (MIT): understand why code exists before removing it (Chesterton's fence); one change at a time with tests after each; existing tests must pass unmodified.
