@@ -137,31 +137,61 @@ for tool in opencode2 timeout jq; do
 done
 
 # The checkout is untrusted: OpenCode does not resolve symlinks when it checks that a read stays
-# in the project, so a link to a file outside would leak it. Only the repository's top level runs.
+# in the project, so a tracked link to a file outside would leak it. Only tracked links count:
+# untracked ones (node_modules, .venv) come from local tools, not from the change.
+track_link() { ln -s "$1" "$checkout/$2" && git -C "$checkout" add -- "$2"; }
+untrack_link() { git -C "$checkout" rm -q --cached -- "$1"; rm "$checkout/$1"; }
 echo secret >"$tmp/outside-secret"
-mkdir -p "$checkout/docs"
-ln -s "$tmp/outside-secret" "$checkout/docs/x"
-refuses "follows a symlink out of the checkout" "$run" "opencode/glm-5.3"
-rm "$checkout/docs/x"
-ln -s "$tmp" "$checkout/docs/up"
-refuses "follows a symlinked folder out of the checkout" "$run" "opencode/glm-5.3"
-rm "$checkout/docs/up"
+mkdir -p "$checkout/docs" "$checkout/config"
+track_link "$tmp/outside-secret" docs/x
+refuses "follows a tracked symlink out of the checkout" "$run" "opencode/glm-5.3"
+untrack_link docs/x
+track_link "$tmp" docs/up
+refuses "follows a tracked symlinked folder out of the checkout" "$run" "opencode/glm-5.3"
+untrack_link docs/up
 mkdir -p "$tmp/checkout-sibling"; echo secret >"$tmp/checkout-sibling/key"
-ln -s "$tmp/checkout-sibling/key" "$checkout/docs/sib"
+track_link "$tmp/checkout-sibling/key" docs/sib
 refuses "matches the checkout path by prefix" "$run" "opencode/glm-5.3"
-rm "$checkout/docs/sib"
-ln -s "$checkout/missing-target" "$checkout/docs/dangling"
-refuses "trusts a dangling symlink" "$run" "opencode/glm-5.3"
-rm "$checkout/docs/dangling"
+untrack_link docs/sib
+track_link "$checkout/missing-target" docs/dangling
+refuses "trusts a dangling tracked symlink" "$run" "opencode/glm-5.3"
+untrack_link docs/dangling
+# A link inside the checkout to a file the read rules deny gets past them under another name.
+echo SECRET=1 >"$checkout/.env"; echo SECRET=1 >"$checkout/config/.ENV.Production"; echo k=1 >"$checkout/config/app.secrets.env"
+track_link ../.env docs/notes.txt
+refuses "lets a tracked link reach .env under another name" "$run" "opencode/glm-5.3"
+untrack_link docs/notes.txt
+track_link ../config/.ENV.Production docs/prod.txt
+refuses "matches the denied names case-sensitively" "$run" "opencode/glm-5.3"
+untrack_link docs/prod.txt
+track_link ../config/app.secrets.env docs/app.txt
+refuses "lets a tracked link reach a .secrets.env file" "$run" "opencode/glm-5.3"
+untrack_link docs/app.txt
+# A tracked outside link inside a submodule.
+sub_src="$tmp/sub-src"
+git init -q "$sub_src"
+ln -s "$tmp/outside-secret" "$sub_src/leak"
+git -C "$sub_src" add leak
+git -C "$sub_src" -c user.name=test -c user.email=test@example.invalid commit -q -m "add a link"
+git -C "$checkout" -c protocol.file.allow=always submodule --quiet add "$sub_src" sub 2>/dev/null
+refuses "skips the links of submodules" "$run" "opencode/glm-5.3"
+git -C "$checkout" rm -q -r --cached sub .gitmodules
+rm -rf "$checkout/sub" "$checkout/.gitmodules" "$checkout/.git/modules"
+git init -q "$tmp/bad-index"; echo "not an index" >"$tmp/bad-index/.git/index"
+refuses "trusts the link list when git ls-files fails" "$run" "opencode/glm-5.3" "$tmp/bad-index"
 refuses "runs from a folder below the top level" "$run" "opencode/glm-5.3" "$checkout/docs"
 mkdir -p "$tmp/not-a-repo"
 refuses "runs from a folder that is not a repository" "$run" "opencode/glm-5.3" "$tmp/not-a-repo"
 echo inside >"$checkout/docs/real.md"
-ln -s ../docs/real.md "$checkout/docs/inside"
+track_link ../docs/real.md docs/inside
+ln -s "$tmp/outside-secret" "$checkout/docs/untracked-out"
+git -C "$checkout" add .env
 rm -f "$FAKE_ARGS_FILE"
 "$review" "$checkout" "$run" "opencode/glm-5.3" >/dev/null 2>&1
-[ $? -eq 0 ] && [ -e "$FAKE_ARGS_FILE" ] && pass "refuses a symlink that stays inside the checkout" ||
-  fail "refuses a symlink that stays inside the checkout" "did not run"
+[ $? -eq 0 ] && [ -e "$FAKE_ARGS_FILE" ] &&
+  pass "refuses a tracked symlink inside the checkout, an untracked one, or a tracked .env that is no link" ||
+  fail "refuses a tracked symlink inside the checkout, an untracked one, or a tracked .env that is no link" "did not run"
+rm "$checkout/docs/untracked-out"
 
 # An allowed model runs, from the checkout, with the pinned agent and model, and writes its files.
 run=$(new_run r2)

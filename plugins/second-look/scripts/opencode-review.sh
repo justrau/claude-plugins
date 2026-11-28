@@ -49,16 +49,34 @@ top=$(git -C "$checkout_real" rev-parse --show-toplevel 2>/dev/null) ||
 [ "$(cd "$top" && pwd -P)" = "$checkout_real" ] ||
   die "checkout '$checkout' is not the top level of its repository"
 # OpenCode checks that a read stays in the project without resolving symlinks, so a change could
-# add a link to a file outside (a key, a secret). Refuse a link that leaves the checkout or does
-# not resolve.
-while IFS= read -r -d '' link; do
-  [ -e "$link" ] || die "symlink '$link' does not resolve"
-  target=$(realpath "$link") || die "symlink '$link' does not resolve"
-  case $target in
-    "$checkout_real" | "$checkout_real"/*) ;;
-    *) die "symlink '$link' points outside the checkout" ;;
-  esac
-done < <(find "$checkout_real" -path "$checkout_real/.git" -prune -o -type l -print0)
+# add a link to a file outside (a key, a secret), or to a file inside that the read rules deny
+# (docs/notes.txt -> ../.env). Check the tracked links only (mode 120000, submodules included):
+# they are what the change brings, and a walk over every link is slow on a pnpm checkout and
+# refuses the links that uv or venv make in .venv.
+links=()
+while IFS= read -r -d '' entry; do
+  case $entry in 120000\ *) links+=("$checkout_real/${entry#*$'\t'}") ;; esac
+done < <(git -C "$checkout_real" ls-files -s -z --recurse-submodules)
+wait "$!" || die "git ls-files failed in '$checkout'"
+if [ ${#links[@]} -gt 0 ]; then
+  for link in "${links[@]}"; do
+    [ -e "$link" ] || die "tracked symlink '$link' does not resolve"
+  done
+  mapfile -t targets < <(realpath "${links[@]}")
+  wait "$!" || die "a tracked symlink does not resolve"
+  [ ${#targets[@]} -eq ${#links[@]} ] || die "tracked symlinks did not resolve one to one"
+  for i in "${!links[@]}"; do
+    case ${targets[$i]} in
+      "$checkout_real" | "$checkout_real"/*) ;;
+      *) die "tracked symlink '${links[$i]}' points outside the checkout" ;;
+    esac
+    name=${targets[$i]##*/}
+    # The agent's read denies: *.env, *.env.* and *.secrets.env (which *.env already covers).
+    case ${name,,} in
+      *.env | *.env.*) die "tracked symlink '${links[$i]}' points to a file the read rules deny" ;;
+    esac
+  done
+fi
 [ -d "$STATE_ROOT" ] || die "state folder $STATE_ROOT does not exist"
 [ -d "$run_dir" ] || die "run dir '$run_dir' is not a directory"
 root_real=$(cd "$STATE_ROOT" && pwd -P)
