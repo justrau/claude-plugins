@@ -112,6 +112,25 @@ rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an agent that may read the whole run dir" ||
   fail "runs with an agent that may read the whole run dir" "not refused"
+# Only read, glob and external_directory may be allowed in the file OpenCode gets.
+awk 'n == 1 && /^---$/ { print "  - action: bash"; print "    resource: \"*\""; print "    effect: allow" } /^---$/ { n++ } 1' \
+  "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an agent that gains a shell allow" ||
+  fail "runs with an agent that gains a shell allow" "not refused"
+awk 'n == 1 && /^---$/ { print "  - effect: allow"; print "    resource: \"*\""; print "    action: edit" } /^---$/ { n++ } 1' \
+  "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "misses an edit allow written with its keys reordered" ||
+  fail "misses an edit allow written with its keys reordered" "not refused"
+awk 'n == 1 && /^---$/ { print "  - effect: allow"; print "    resource: \"/*\""; print "    action: external_directory" } /^---$/ { n++ } 1' \
+  "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "misses a second outside folder allow written with its keys reordered" ||
+  fail "misses a second outside folder allow written with its keys reordered" "not refused"
 awk '!d && /effect: deny/ { sub(/deny/, "allow"); d = 1 } 1' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
 rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null

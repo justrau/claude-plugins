@@ -123,9 +123,30 @@ mv "$agent_tmp" "$agent_file"
 first_rule=$(awk '/^permissions:/ { p = 1; next } p && n < 3 { gsub(/ /, ""); printf "%s ", $0; n++ }' "$agent_file")
 [ "$first_rule" = '-action:"*" resource:"*" effect:deny ' ] ||
   die "agent file $agent_file does not start its permissions with the deny-all rule"
-ext_allows=$(awk '/^ *- action: external_directory/ { x = 1; next } x && /resource:/ { r = $0; sub(/^ *resource: */, "", r) }
-  x && /effect: allow/ { print r } /^ *- action:/ { x = 0 }' "$agent_file")
-if [ "$ext_allows" != "\"$brief_dir/*\"" ] || grep -q '__BRIEF_DIR__' "$agent_file"; then
+# Read the allow rules of the frontmatter as "<action> <resource>" lines. Each "- " item is one
+# rule, whatever the order of its keys.
+allow_rules=$(awk '
+  function flush() { if (eff == "allow") print act " " res; act = ""; eff = ""; res = "" }
+  function value(key,   v) { v = line; sub("^" key ": *", "", v); gsub(/"/, "", v); return v }
+  /^---$/ { if (++fm == 2) { flush(); exit } next }
+  /^ *- / { flush() }
+  { line = $0; sub(/^ *(- )? */, "", line) }
+  line ~ /^action:/ { act = value("action") }
+  line ~ /^effect:/ { eff = value("effect") }
+  line ~ /^resource:/ { res = value("resource") }
+  END { flush() }' "$agent_file")
+# Only read, glob and external_directory may be allowed, and external_directory only for this
+# invocation's brief folder.
+ext_allows=""
+while IFS= read -r rule; do
+  action=${rule%% *}
+  case $action in
+    read | glob) ;;
+    external_directory) ext_allows+="${rule#* }"$'\n' ;;
+    *) die "agent file $agent_file allows '$action'; only read, glob and external_directory may be allowed" ;;
+  esac
+done <<<"$allow_rules"
+if [ "$ext_allows" != "$brief_dir/*"$'\n' ] || grep -q '__BRIEF_DIR__' "$agent_file"; then
   die "agent file $agent_file must allow exactly one outside folder, this run's brief folder"
 fi
 
