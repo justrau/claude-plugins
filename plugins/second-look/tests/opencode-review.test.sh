@@ -63,7 +63,7 @@ refuses "accepts a run dir nested deeper than one level" "$state/r1/nested" "ope
 ln -s "$tmp" "$state/link"; echo brief >"$tmp/brief.md"
 refuses "trusts a symlinked run dir by its name" "$state/link" "opencode/glm-5.3"
 refuses "writes a run dir path that breaks the agent's YAML" "$(new_run 'bad"quote')" "opencode/glm-5.3"
-refuses "leaves a placeholder that the run dir name brought in" "$(new_run 'x__RUN_DIR__y')" "opencode/glm-5.3"
+refuses "leaves a placeholder that the run dir name brought in" "$(new_run 'x__BRIEF_DIR__y')" "opencode/glm-5.3"
 mkdir -p "$state/nobrief"
 refuses "starts without a brief" "$state/nobrief" "opencode/glm-5.3"
 rm -f "$FAKE_ARGS_FILE"
@@ -82,22 +82,28 @@ rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs without its pinned agent file" || fail "runs without its pinned agent file" "not refused"
 # The agent file is a template whose run dir placeholder must appear exactly once.
-grep -v '__RUN_DIR__' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+grep -v '__BRIEF_DIR__' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
 rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with a template that lacks the run dir placeholder" ||
   fail "runs with a template that lacks the run dir placeholder" "not refused"
-{ cat "$here/../opencode/agents/second-look-reviewer.md"; echo "# __RUN_DIR__"; } >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+{ cat "$here/../opencode/agents/second-look-reviewer.md"; echo "# __BRIEF_DIR__"; } >"$tmp/copy/opencode/agents/second-look-reviewer.md"
 rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with a template that has the placeholder twice" ||
   fail "runs with a template that has the placeholder twice" "not refused"
-{ sed 's|"__RUN_DIR__/brief.md"|"*"|' "$here/../opencode/agents/second-look-reviewer.md"; echo "# __RUN_DIR__"; } >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+{ sed 's|"__BRIEF_DIR__/\*"|"*"|' "$here/../opencode/agents/second-look-reviewer.md"; echo "# __BRIEF_DIR__"; } >"$tmp/copy/opencode/agents/second-look-reviewer.md"
 rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an agent that does not allow its run dir" ||
   fail "runs with an agent that does not allow its run dir" "not refused"
-sed 's|"__RUN_DIR__/brief.md"|"__RUN_DIR__/*"|' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+# OpenCode asks external_directory per folder, so a rule that names a file never matches.
+sed 's|"__BRIEF_DIR__/\*"|"__BRIEF_DIR__/brief.md"|' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an allow that names the brief file, which never matches" ||
+  fail "runs with an allow that names the brief file, which never matches" "not refused"
+sed 's|"__BRIEF_DIR__/\*"|"__BRIEF_DIR__/../*"|' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
 rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an agent that may read the whole run dir" ||
@@ -174,13 +180,19 @@ case $config_dir in "$(cd "$run" && pwd -P)"/opencode.??????) ;; *) config_dir="
   [ "$(sed -n 2,3p <<<"$args")" = "$(printf 'run\n--standalone')" ] &&
   pass "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" ||
   fail "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" "$env_seen / $(sed -n 2,3p <<<"$args")"
-# Outside the checkout, the generated agent may read only this run's brief: not earlier runs, nor
-# the other model's report and events, nor its own config dir.
+# Outside the checkout, the generated agent may read only this invocation's brief folder: not
+# earlier runs, nor the other model's report and events, nor its own config dir.
 gen="$config_dir/agents/second-look-reviewer.md"
-ext=$(awk '/^ *- action: external_directory/ { x = 1; next } x && /resource:/ { r = $2 } x && /effect: allow/ { print r } /^ *- action:/ { x = 0 }' "$gen" 2>/dev/null | tr -d '"')
-[ "$ext" = "$(cd "$run" && pwd -P)/brief.md" ] && ! grep -q '__RUN_DIR__' "$gen" &&
-  sed '/__RUN_DIR__/d' "$here/../opencode/agents/second-look-reviewer.md" | diff -q - <(grep -v -F "$(cd "$run" && pwd -P)/brief.md" "$gen") >/dev/null &&
-  pass "agent may read more than this run's brief" || fail "agent may read more than this run's brief" "allows: $ext"
+ext=$(awk '/^ *- action: external_directory/ { x = 1; next } x && /resource:/ { r = $0; sub(/^ *resource: */, "", r) } x && /effect: allow/ { print r } /^ *- action:/ { x = 0 }' "$gen" 2>/dev/null | tr -d '"')
+brief_dir=${ext%/\*}
+prompt_seen=$(tail -n 1 <<<"$args")
+case $brief_dir in "$(cd "$run" && pwd -P)"/brief.??????) ;; *) brief_dir="<not a brief folder: $ext>" ;; esac
+[ "$ext" = "$brief_dir/*" ] && cmp -s "$brief_dir/brief.md" "$run/brief.md" && [ "$(ls -A "$brief_dir")" = "brief.md" ] &&
+  [ "$prompt_seen" = "Read $brief_dir/brief.md and follow it. Your final message is the report." ] &&
+  ! grep -q '__BRIEF_DIR__' "$gen" &&
+  sed '/__BRIEF_DIR__/d' "$here/../opencode/agents/second-look-reviewer.md" | diff -q - <(grep -v -F "$brief_dir/*" "$gen") >/dev/null &&
+  pass "agent may read more than this invocation's brief folder" ||
+  fail "agent may read more than this invocation's brief folder" "allows: $ext; prompt: $prompt_seen"
 [ "$(stat -f %Lp "$run" 2>/dev/null || stat -c %a "$run")" = 700 ] &&
   pass "leaves the run dir open to other users" || fail "leaves the run dir open to other users" "$(stat -f %Lp "$run")"
 [ "$(cat "$run/report-$slug.md")" = "$(printf '## Findings\n1. An example finding.')" ] &&
@@ -209,6 +221,10 @@ dir_b=$(sed -n 's/^OPENCODE_CONFIG_DIR=//p' "$tmp/env-b" 2>/dev/null)
   sed -n 6,8p "$tmp/env-a.agent" | tr -d ' ' | paste -sd' ' - | grep -qx -- '-action:"\*" resource:"\*" effect:deny' &&
   sed -n 6,8p "$tmp/env-b.agent" | tr -d ' ' | paste -sd' ' - | grep -qx -- '-action:"\*" resource:"\*" effect:deny' &&
   pass "parallel runs share one agent file" || fail "parallel runs share one agent file" "$st_a $st_b: $dir_a / $dir_b"
+prompt_a=$(tail -n 1 "$tmp/args-a" 2>/dev/null)
+prompt_b=$(tail -n 1 "$tmp/args-b" 2>/dev/null)
+[ -n "$prompt_a" ] && [ "$prompt_a" != "$prompt_b" ] && [ "$(find "$runp_real" -maxdepth 1 -type d -name 'brief.*' | wc -l | tr -d ' ')" = 2 ] &&
+  pass "parallel runs share one brief folder" || fail "parallel runs share one brief folder" "$prompt_a / $prompt_b"
 
 # OpenCode's own failure status comes back, and the metrics still record it.
 run=$(new_run r3)

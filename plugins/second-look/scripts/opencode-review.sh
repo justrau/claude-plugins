@@ -70,15 +70,18 @@ run_real=$(cd "$run_dir" && pwd -P)
 # folder it runs in, so a change under review could replace our agent or run code on load. Turn
 # project config off, take config (and the agent) only from a folder this script writes in the run
 # dir, and run standalone: the background service would ignore these variables.
-# The plugin's agent file is a template: its one __RUN_DIR__ becomes this run dir, so the model
-# can read this run's brief.md and nothing else outside the checkout: not earlier runs, nor the
-# other model's report and events, nor its own config dir.
+# The plugin's agent file is a template: its one __BRIEF_DIR__ becomes a folder that holds only a
+# copy of this run's brief, so the model can read the brief and nothing else outside the checkout:
+# not earlier runs, nor the other model's report and events, nor its own config dir. OpenCode asks
+# external_directory per folder (<dir>/*), never per file, so the rule must name a folder.
 template="$(cd "$(dirname "$0")/.." && pwd -P)/opencode/agents/second-look-reviewer.md"
 [ -f "$template" ] || die "agent file $template is missing"
-[ "$(grep -o '__RUN_DIR__' "$template" | wc -l | tr -d ' ')" = 1 ] ||
-  die "agent file $template must hold __RUN_DIR__ exactly once"
+[ "$(grep -o '__BRIEF_DIR__' "$template" | wc -l | tr -d ' ')" = 1 ] ||
+  die "agent file $template must hold __BRIEF_DIR__ exactly once"
 case $run_real in *[\"\\]* | *$'\n'*) die "run dir path must not hold a quote, a backslash or a newline" ;; esac
 chmod 700 "$run_real"
+brief_dir=$(mktemp -d "$run_real/brief.XXXXXX")
+cp "$run_real/brief.md" "$brief_dir/brief.md"
 # Each invocation gets its own config dir: the lead starts the models at once on one run dir, and
 # a shared agent file rewritten under a starting OpenCode could be read half-written, without its
 # deny rules. The file is written to a temp name and moved into place, then checked.
@@ -86,14 +89,16 @@ config_dir=$(mktemp -d "$run_real/opencode.XXXXXX")
 mkdir "$config_dir/agents"
 agent=$(<"$template")
 agent_tmp=$(mktemp "$config_dir/agent.XXXXXX")
-printf '%s\n' "${agent//__RUN_DIR__/"$run_real"}" >"$agent_tmp"
+printf '%s\n' "${agent//__BRIEF_DIR__/"$brief_dir"}" >"$agent_tmp"
 agent_file="$config_dir/agents/second-look-reviewer.md"
 mv "$agent_tmp" "$agent_file"
 first_rule=$(awk '/^permissions:/ { p = 1; next } p && n < 3 { gsub(/ /, ""); printf "%s ", $0; n++ }' "$agent_file")
 [ "$first_rule" = '-action:"*" resource:"*" effect:deny ' ] ||
   die "agent file $agent_file does not start its permissions with the deny-all rule"
-if [ "$(grep -cxF "    resource: \"$run_real/brief.md\"" "$agent_file")" != 1 ] || grep -q '__RUN_DIR__' "$agent_file"; then
-  die "agent file $agent_file does not allow this run's brief.md exactly once"
+ext_allows=$(awk '/^ *- action: external_directory/ { x = 1; next } x && /resource:/ { r = $0; sub(/^ *resource: */, "", r) }
+  x && /effect: allow/ { print r } /^ *- action:/ { x = 0 }' "$agent_file")
+if [ "$ext_allows" != "\"$brief_dir/*\"" ] || grep -q '__BRIEF_DIR__' "$agent_file"; then
+  die "agent file $agent_file must allow exactly one outside folder, this run's brief folder"
 fi
 
 # The caller's environment is untrusted too: OPENCODE_CONFIG, OPENCODE_CONFIG_CONTENT and others
@@ -113,7 +118,7 @@ slug=${slug//#/-}
 events="$run_real/events-$slug.jsonl"
 report="$run_real/report-$slug.md"
 run_id=$(basename "$run_real")
-prompt="Read $run_real/brief.md and follow it. Your final message is the report."
+prompt="Read $brief_dir/brief.md and follow it. Your final message is the report."
 
 version=$(cd "$run_real" && env "${scrub[@]}" "${our_env[@]}" opencode2 --version 2>/dev/null | head -n 1) || true
 
