@@ -167,8 +167,9 @@ else
 fi
 
 # The checkout is untrusted: OpenCode does not resolve symlinks when it checks that a read stays
-# in the project, so a tracked link to a file outside would leak it. Only tracked links count:
-# untracked ones (node_modules, .venv) come from local tools, not from the change.
+# in the project, so a link to a file outside would leak it. The check walks the file system,
+# not git's index or .gitignore, and skips only a fixed list of install folders (node_modules,
+# .venv, venv, vendor) that the change does not track.
 track_link() { ln -s "$1" "$checkout/$2" && git -C "$checkout" add -- "$2"; }
 untrack_link() { git -C "$checkout" rm -q --cached -- "$1"; rm "$checkout/$1"; }
 echo secret >"$tmp/outside-secret"
@@ -197,39 +198,58 @@ untrack_link docs/prod.txt
 track_link ../config/app.secrets.env docs/app.txt
 refuses "lets a tracked link reach a .secrets.env file" "$run" "opencode/glm-5.3"
 untrack_link docs/app.txt
-# A tracked outside link inside a submodule.
+# A tracked outside link inside a submodule, in a folder named like an install folder.
 sub_src="$tmp/sub-src"
 git init -q "$sub_src"
-ln -s "$tmp/outside-secret" "$sub_src/leak"
-git -C "$sub_src" add leak
+mkdir -p "$sub_src/vendor"
+ln -s "$tmp/outside-secret" "$sub_src/vendor/leak"
+git -C "$sub_src" add vendor/leak
 git -C "$sub_src" -c user.name=test -c user.email=test@example.invalid commit -q -m "add a link"
 git -C "$checkout" -c protocol.file.allow=always submodule --quiet add "$sub_src" sub 2>/dev/null
 refuses "skips the links of submodules" "$run" "opencode/glm-5.3"
 git -C "$checkout" rm -q -r --cached sub .gitmodules
 rm -rf "$checkout/sub" "$checkout/.gitmodules" "$checkout/.git/modules"
-git init -q "$tmp/bad-index"; echo "not an index" >"$tmp/bad-index/.git/index"
-refuses "trusts the link list when git ls-files fails" "$run" "opencode/glm-5.3" "$tmp/bad-index"
+# A folder the walk cannot read may hide a link.
+mkdir -p "$checkout/docs/locked"; chmod 000 "$checkout/docs/locked"
+refuses "trusts a walk that could not read a folder" "$run" "opencode/glm-5.3"
+chmod 755 "$checkout/docs/locked"; rmdir "$checkout/docs/locked"
+# A tracked file that became a link in the worktree, without the index knowing.
+echo text >"$checkout/docs/plain.txt"; git -C "$checkout" add docs/plain.txt
+rm "$checkout/docs/plain.txt"; ln -s "$tmp/outside-secret" "$checkout/docs/plain.txt"
+refuses "trusts the index for a file that became a link" "$run" "opencode/glm-5.3"
+rm "$checkout/docs/plain.txt"; echo text >"$checkout/docs/plain.txt"
+# A link in a folder that the repository's own .gitignore hides: the change can edit .gitignore.
+printf 'build/\n' >"$checkout/.gitignore"
+mkdir -p "$checkout/build"; ln -s "$tmp/outside-secret" "$checkout/build/out"
+refuses "skips a link that the repository's .gitignore hides" "$run" "opencode/glm-5.3"
+rm -rf "$checkout/build" "$checkout/.gitignore"
+# An install folder name does not hide a link that the change itself tracks there.
+mkdir -p "$checkout/src/vendor"
+track_link "$tmp/outside-secret" src/vendor/leak
+refuses "skips a link in an install folder that the change tracks" "$run" "opencode/glm-5.3"
+untrack_link src/vendor/leak
 refuses "runs from a folder below the top level" "$run" "opencode/glm-5.3" "$checkout/docs"
 mkdir -p "$tmp/not-a-repo"
 refuses "runs from a folder that is not a repository" "$run" "opencode/glm-5.3" "$tmp/not-a-repo"
 echo inside >"$checkout/docs/real.md"
 track_link ../docs/real.md docs/inside
-# Untracked links count too, unless git ignores them: those come from dependency installs.
+# Untracked links count too.
 ln -s "$tmp/outside-secret" "$checkout/docs/untracked-out"
 refuses "skips an untracked link that git does not ignore" "$run" "opencode/glm-5.3"
 rm "$checkout/docs/untracked-out"
 ln -s ../.env "$checkout/docs/untracked-env.txt"
 refuses "skips an untracked link to .env that git does not ignore" "$run" "opencode/glm-5.3"
 rm "$checkout/docs/untracked-env.txt"
-echo "node_modules/" >"$checkout/.gitignore"
-mkdir -p "$checkout/node_modules/.bin"
+# Install folders (not ignored here) hold links that dependency installs make, often outside.
+mkdir -p "$checkout/node_modules/.bin" "$checkout/.venv/bin"
 ln -s "$tmp/outside-secret" "$checkout/node_modules/.bin/tool"
+ln -s "$tmp/outside-secret" "$checkout/.venv/bin/python"
 git -C "$checkout" add .env
 rm -f "$FAKE_ARGS_FILE"
 "$review" "$checkout" "$run" "opencode/glm-5.3" >/dev/null 2>&1
 [ $? -eq 0 ] && [ -e "$FAKE_ARGS_FILE" ] &&
-  pass "refuses a tracked symlink inside the checkout, a link in an ignored folder, or a tracked .env that is no link" ||
-  fail "refuses a tracked symlink inside the checkout, a link in an ignored folder, or a tracked .env that is no link" "did not run"
+  pass "refuses a symlink inside the checkout, a link in an install folder, or a tracked .env that is no link" ||
+  fail "refuses a symlink inside the checkout, a link in an install folder, or a tracked .env that is no link" "did not run"
 
 # An allowed model runs, from the checkout, with the pinned agent and model, and writes its files.
 run=$(new_run r2)

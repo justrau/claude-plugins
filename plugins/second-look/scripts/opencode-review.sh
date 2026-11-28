@@ -58,21 +58,34 @@ top=$(git -C "$checkout_real" rev-parse --show-toplevel 2>/dev/null) ||
   die "checkout '$checkout' is not the top level of its repository"
 # OpenCode checks that a read stays in the project without resolving symlinks, so a change could
 # add a link to a file outside (a key, a secret), or to a file inside that the read rules deny
-# (docs/notes.txt -> ../.env). Check the tracked links (mode 120000, submodules included) and the
-# untracked links that git does not ignore. A walk over every link is slow on a pnpm checkout and
-# refuses the links that uv or venv make in .venv.
-# Links inside ignored folders (node_modules, .venv) are made by dependency installs. Once a
-# change's install scripts have run, this review protects nothing: never install the change's
-# dependencies inside the checkout before an OpenCode run.
+# (docs/notes.txt -> ../.env). Walk the file system, not git's index or .gitignore: a tracked file
+# can become a link in the worktree without the index knowing, and the change can edit .gitignore.
+# The walk skips a fixed list of install folders (node_modules, .venv, venv, vendor): their links
+# are made by dependency installs, and walking them is slow on a pnpm checkout and refuses the
+# interpreter links that uv or venv make. Such a folder is walked after all when the change tracks
+# files in it, so the name alone hides nothing the change brings.
+# Once a change's install scripts have run, this review protects nothing: never install the
+# change's dependencies inside the checkout before an OpenCode run.
+install_dirs=(-name node_modules -o -name .venv -o -name venv -o -name vendor)
 links=()
-while IFS= read -r -d '' entry; do
-  case $entry in 120000\ *) links+=("$checkout_real/${entry#*$'\t'}") ;; esac
-done < <(git -C "$checkout_real" ls-files -s -z --recurse-submodules)
-wait "$!" || die "git ls-files failed in '$checkout'"
-while IFS= read -r -d '' path; do
-  [ -L "$checkout_real/$path" ] && links+=("$checkout_real/$path")
-done < <(git -C "$checkout_real" ls-files -o --exclude-standard -z)
-wait "$!" || die "git ls-files failed in '$checkout'"
+walk_roots=("$checkout_real")
+while IFS= read -r -d '' dir; do
+  tracked=$(git --literal-pathspecs -C "$checkout_real" ls-files --recurse-submodules -- "${dir#"$checkout_real"/}" | head -n 1)
+  [ -z "$tracked" ] || walk_roots+=("$dir")
+done < <(find "$checkout_real" -name .git -prune -o -type d \( "${install_dirs[@]}" \) -prune -print0)
+wait "$!" || die "could not list the install folders in '$checkout'"
+for root in "${walk_roots[@]}"; do
+  # A tracked install folder is walked whole (only .git skipped); the checkout skips install folders.
+  if [ "$root" = "$checkout_real" ]; then
+    prune=(\( -name .git -o "${install_dirs[@]}" \))
+  else
+    prune=(-name .git)
+  fi
+  while IFS= read -r -d '' link; do
+    links+=("$link")
+  done < <(find "$root" -mindepth 1 "${prune[@]}" -prune -o -type l -print0)
+  wait "$!" || die "could not walk '$root' for symlinks"
+done
 if [ ${#links[@]} -gt 0 ]; then
   for link in "${links[@]}"; do
     [ -e "$link" ] || die "symlink '$link' does not resolve"
