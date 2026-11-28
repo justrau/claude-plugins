@@ -253,6 +253,11 @@ rm "$checkout/node_modules"
 ln -s "$tmp" "$checkout/docs/.git"
 refuses "skips a link named .git" "$run" "opencode/glm-5.3"
 rm "$checkout/docs/.git"
+# A tracked regular file in a real install folder that became an outside link in the worktree.
+mkdir -p "$checkout/vendor"; echo '<?php' >"$checkout/vendor/x.php"; git -C "$checkout" add vendor/x.php
+rm "$checkout/vendor/x.php"; ln -s "$tmp/outside-secret" "$checkout/vendor/x.php"
+refuses "skips a tracked file in an install folder that became a link" "$run" "opencode/glm-5.3"
+rm "$checkout/vendor/x.php"; git -C "$checkout" rm -q --cached vendor/x.php; rmdir "$checkout/vendor"
 # A link the change commits inside a real install folder is checked through the index.
 mkdir -p "$checkout/node_modules"
 track_link "$tmp/outside-secret" node_modules/leak

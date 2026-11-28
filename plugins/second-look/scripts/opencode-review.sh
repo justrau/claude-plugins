@@ -79,8 +79,9 @@ esac
 #   .git and real folders on a fixed list of install folders (node_modules, .venv, venv, vendor):
 #   their links are made by dependency installs, and walking them is slow on a pnpm checkout and
 #   refuses the interpreter links that uv or venv make. A link with such a name is still checked.
-# - the tracked links (mode 120000, submodules included), so a link that the change commits
-#   inside an install folder is checked too.
+# - every tracked path (submodules included) that is a link in the worktree, whatever its mode in
+#   the index: a link that the change commits inside an install folder, and a tracked file there
+#   that became a link, are checked too. A tracked link that is no longer a link leads nowhere.
 # Once a change's install scripts have run, this review protects nothing: never install the
 # change's dependencies inside the checkout before an OpenCode run.
 links=()
@@ -90,7 +91,8 @@ done < <(find "$checkout_real" -mindepth 1 \( -name .git \( -type d -o -type f \
   -o -name .venv -o -name venv -o -name vendor \) \) -prune -o -type l -print0)
 wait "$!" || die "could not walk '$checkout' for symlinks"
 while IFS= read -r -d '' entry; do
-  case $entry in 120000\ *) links+=("$checkout_real/${entry#*$'\t'}") ;; esac
+  path="$checkout_real/${entry#*$'\t'}"
+  [ -L "$path" ] && links+=("$path")
 done < <(git -C "$checkout_real" ls-files -s -z --recurse-submodules)
 wait "$!" || die "git ls-files failed in '$checkout'"
 if [ ${#links[@]} -gt 0 ]; then
