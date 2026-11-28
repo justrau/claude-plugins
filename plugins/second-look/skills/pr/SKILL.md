@@ -66,7 +66,7 @@ Start the reviewer agent with the brief, in the background. When its report arri
 4. **Evaluation log:** after section 4, write `<run-dir>/grades.json` (its shape is in the header of `../../scripts/opencode-review-log.sh`). For each model, give counts:
    - `confirmed`: its findings that you confirmed; `false`: its findings that are wrong.
    - `duplicate`: a repeat of a finding inside the same model's report.
-   - `missed`: real findings from the other reviewers, or from the other OpenCode model, that this model did not report. Nits do not count. A finding that needs a sibling repository or a dependency source does not count either: this reviewer cannot read outside the checkout and its run dir.
+   - `missed`: real findings from the other reviewers, or from the other OpenCode model, that this model did not report. Nits do not count. A finding that needs a sibling repository or a dependency source does not count either: this reviewer cannot read outside the checkout and its brief folder.
 
    Then run `../../scripts/opencode-review-log.sh append <run-dir>`, and show the output of `../../scripts/opencode-review-log.sh summary` in the hand-back.
    - After `append`, delete `brief.md`, `events-*`, `stderr-*`, `report-*` and the generated `brief.*` and `opencode.*` folders from the run dir. Keep `metrics-*` and `grades.json`.

@@ -15,7 +15,7 @@
 #   missed     real findings from the other reviewers, or from the other OpenCode model, that this
 #              model did not report. Nits do not count, and neither do findings that need a sibling
 #              repository or a dependency source: this reviewer cannot read outside the checkout and
-#              its run dir.
+#              its brief folder.
 # and metrics-<slug>.json of each model, written by opencode-review.sh. The row holds no finding
 # text, no code and no paths inside the repository.
 set -euo pipefail
