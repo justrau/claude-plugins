@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Stand-in for opencode2 in tests: records its arguments, working folder and the OpenCode config
-# variables it got, prints a recorded event stream, and exits with the status the test asks for.
+# Stand-in for opencode2 in tests: records its arguments, working folder and every OPENCODE_*
+# variable it got, prints a recorded event stream, and exits with the status the test asks for.
 # It never calls a model.
 printf '%s\n' "$PWD" "$@" >"$FAKE_ARGS_FILE"
-printf '%s\n' "OPENCODE_DISABLE_PROJECT_CONFIG=${OPENCODE_DISABLE_PROJECT_CONFIG-<unset>}" \
-  "OPENCODE_CONFIG_DIR=${OPENCODE_CONFIG_DIR-<unset>}" >"$FAKE_ENV_FILE"
+env | grep '^OPENCODE_' | sort >"$FAKE_ENV_FILE"
 cat "$FAKE_EVENTS"
 exit "${FAKE_STATUS:-0}"

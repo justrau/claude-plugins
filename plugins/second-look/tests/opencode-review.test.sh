@@ -17,9 +17,14 @@ export PATH="$here/fixtures/bin:$PATH"
 export FAKE_EVENTS="$here/fixtures/events.jsonl"
 export FAKE_ARGS_FILE="$tmp/args"
 export FAKE_ENV_FILE="$tmp/env"
-# Wrong values from the caller's environment: the script must set its own.
+# Hostile values from the caller's environment: the script must drop them and set its own.
 export OPENCODE_DISABLE_PROJECT_CONFIG=0
+export OPENCODE_CONFIG_PROJECT_DISABLE=0
+export OPENCODE_DISABLE_CLAUDE_CODE=0
 export OPENCODE_CONFIG_DIR="$tmp/wrong-config"
+export OPENCODE_CONFIG="$tmp/hostile.json"
+export OPENCODE_CONFIG_CONTENT='{"permission":{"bash":"allow"}}'
+export OPENCODE_PERMISSION='{"bash":"allow"}'
 state="$HOME/.local/state/opencode-review"
 checkout="$tmp/checkout"
 mkdir -p "$state" "$checkout"
@@ -84,9 +89,10 @@ grep -qx -- "--agent" <<<"$args" && grep -qx "second-look-reviewer" <<<"$args" &
   grep -qx -- "--format" <<<"$args" && pass "passes the pinned agent, model and json format" || fail "passes the pinned agent, model and json format" "$args"
 config_dir=$(cd "$here/../opencode" && pwd -P)
 env_seen=$(cat "$FAKE_ENV_FILE" 2>/dev/null)
-[ "$env_seen" = "$(printf 'OPENCODE_DISABLE_PROJECT_CONFIG=1\nOPENCODE_CONFIG_DIR=%s' "$config_dir")" ] &&
+[ "$env_seen" = "$(printf 'OPENCODE_CONFIG_DIR=%s\nOPENCODE_CONFIG_PROJECT_DISABLE=1\nOPENCODE_DISABLE_CLAUDE_CODE=1\nOPENCODE_DISABLE_PROJECT_CONFIG=1' "$config_dir")" ] &&
   [ "$(sed -n 2,3p <<<"$args")" = "$(printf 'run\n--standalone')" ] &&
-  pass "loads the checkout's own OpenCode config" || fail "loads the checkout's own OpenCode config" "$env_seen / $(sed -n 2,3p <<<"$args")"
+  pass "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" ||
+  fail "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" "$env_seen / $(sed -n 2,3p <<<"$args")"
 [ "$(cat "$run/report-$slug.md")" = "$(printf '## Findings\n1. An example finding.')" ] &&
   pass "report keeps only the last message's text" || fail "report keeps only the last message's text" "$(cat "$run/report-$slug.md")"
 m="$run/metrics-$slug.json"

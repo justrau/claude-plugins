@@ -52,6 +52,18 @@ config_dir="$(cd "$(dirname "$0")/.." && pwd -P)/opencode"
 [ -f "$config_dir/agents/second-look-reviewer.md" ] ||
   die "agent file $config_dir/agents/second-look-reviewer.md is missing"
 
+# The caller's environment is untrusted too: OPENCODE_CONFIG, OPENCODE_CONFIG_CONTENT and others
+# can add permissions, and OPENCODE_CONFIG_PROJECT_DISABLE overrides OPENCODE_DISABLE_PROJECT_CONFIG
+# (even when it is 0). Unset every OPENCODE_* variable, then set only ours.
+# OPENCODE_DISABLE_CLAUDE_CODE=1 stops OpenCode's Claude Code compatibility, which loads
+# ~/.claude/CLAUDE.md as an instruction and so sends the owner's private rules to the model.
+scrub=()
+while IFS= read -r name; do
+  case $name in OPENCODE_*) scrub+=(-u "$name") ;; esac
+done < <(compgen -e)
+our_env=(OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_CONFIG_PROJECT_DISABLE=1
+  OPENCODE_DISABLE_CLAUDE_CODE=1 "OPENCODE_CONFIG_DIR=$config_dir")
+
 slug=${model//\//-}
 slug=${slug//#/-}
 events="$run_real/events-$slug.jsonl"
@@ -61,8 +73,8 @@ prompt="Read $run_real/brief.md and follow it. Your final message is the report.
 
 start=$(date +%s)
 status=0
-(cd "$checkout" && OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_CONFIG_DIR="$config_dir" \
-  exec timeout "$TIMEOUT_S" opencode2 run --standalone --agent second-look-reviewer -m "$model" \
+(cd "$checkout" && exec env "${scrub[@]}" "${our_env[@]}" \
+  timeout "$TIMEOUT_S" opencode2 run --standalone --agent second-look-reviewer -m "$model" \
   --title "review $run_id" --format json "$prompt") \
   >"$events" 2>"$run_real/stderr-$slug.log" </dev/null || status=$?
 wall=$(( $(date +%s) - start ))
