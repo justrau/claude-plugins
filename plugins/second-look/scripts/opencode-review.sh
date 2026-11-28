@@ -78,10 +78,22 @@ template="$(cd "$(dirname "$0")/.." && pwd -P)/opencode/agents/second-look-revie
   die "agent file $template must hold __RUN_DIR__ exactly once"
 case $run_real in *[\"\\]* | *$'\n'*) die "run dir path must not hold a quote, a backslash or a newline" ;; esac
 chmod 700 "$run_real"
-config_dir="$run_real/opencode"
-mkdir -p "$config_dir/agents"
+# Each invocation gets its own config dir: the lead starts the models at once on one run dir, and
+# a shared agent file rewritten under a starting OpenCode could be read half-written, without its
+# deny rules. The file is written to a temp name and moved into place, then checked.
+config_dir=$(mktemp -d "$run_real/opencode.XXXXXX")
+mkdir "$config_dir/agents"
 agent=$(<"$template")
-printf '%s\n' "${agent//__RUN_DIR__/"$run_real"}" >"$config_dir/agents/second-look-reviewer.md"
+agent_tmp=$(mktemp "$config_dir/agent.XXXXXX")
+printf '%s\n' "${agent//__RUN_DIR__/"$run_real"}" >"$agent_tmp"
+agent_file="$config_dir/agents/second-look-reviewer.md"
+mv "$agent_tmp" "$agent_file"
+first_rule=$(awk '/^permissions:/ { p = 1; next } p && n < 3 { gsub(/ /, ""); printf "%s ", $0; n++ }' "$agent_file")
+[ "$first_rule" = '-action:"*" resource:"*" effect:deny ' ] ||
+  die "agent file $agent_file does not start its permissions with the deny-all rule"
+if [ "$(grep -cxF "    resource: \"$run_real/*\"" "$agent_file")" != 1 ] || grep -q '__RUN_DIR__' "$agent_file"; then
+  die "agent file $agent_file does not allow this run dir exactly once"
+fi
 
 # The caller's environment is untrusted too: OPENCODE_CONFIG, OPENCODE_CONFIG_CONTENT and others
 # can add permissions, and OPENCODE_CONFIG_PROJECT_DISABLE overrides OPENCODE_DISABLE_PROJECT_CONFIG

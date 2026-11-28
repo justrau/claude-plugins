@@ -63,6 +63,7 @@ refuses "accepts a run dir nested deeper than one level" "$state/r1/nested" "ope
 ln -s "$tmp" "$state/link"; echo brief >"$tmp/brief.md"
 refuses "trusts a symlinked run dir by its name" "$state/link" "opencode/glm-5.3"
 refuses "writes a run dir path that breaks the agent's YAML" "$(new_run 'bad"quote')" "opencode/glm-5.3"
+refuses "leaves a placeholder that the run dir name brought in" "$(new_run 'x__RUN_DIR__y')" "opencode/glm-5.3"
 mkdir -p "$state/nobrief"
 refuses "starts without a brief" "$state/nobrief" "opencode/glm-5.3"
 rm -f "$FAKE_ARGS_FILE"
@@ -91,6 +92,16 @@ rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with a template that has the placeholder twice" ||
   fail "runs with a template that has the placeholder twice" "not refused"
+{ sed 's|"__RUN_DIR__/\*"|"*"|' "$here/../opencode/agents/second-look-reviewer.md"; echo "# __RUN_DIR__"; } >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an agent that does not allow its run dir" ||
+  fail "runs with an agent that does not allow its run dir" "not refused"
+awk '!d && /effect: deny/ { sub(/deny/, "allow"); d = 1 } 1' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an agent whose first rule is not deny-all" ||
+  fail "runs with an agent whose first rule is not deny-all" "not refused"
 
 # Preflight: a missing tool stops the review before the paid run, not halfway through it.
 bin_without() {
@@ -151,8 +162,9 @@ after() { awk -v flag="$1" 'found { print; exit } $0 == flag { found = 1 }' <<<"
 [ "$(after --format)" = "json" ] && pass "drops the json format" || fail "drops the json format" "$args"
 [ "$(after --title)" = "review r2" ] && pass "drops the title, so OpenCode asks a small model for one" ||
   fail "drops the title, so OpenCode asks a small model for one" "$args"
-config_dir="$(cd "$run" && pwd -P)/opencode"
 env_seen=$(cat "$FAKE_ENV_FILE" 2>/dev/null)
+config_dir=$(sed -n 's/^OPENCODE_CONFIG_DIR=//p' <<<"$env_seen")
+case $config_dir in "$(cd "$run" && pwd -P)"/opencode.??????) ;; *) config_dir="<not in the run dir: $config_dir>" ;; esac
 [ "$env_seen" = "$(printf 'OPENCODE_CONFIG_DIR=%s\nOPENCODE_CONFIG_PROJECT_DISABLE=1\nOPENCODE_DISABLE_CLAUDE_CODE=1\nOPENCODE_DISABLE_PROJECT_CONFIG=1' "$config_dir")" ] &&
   [ "$(sed -n 2,3p <<<"$args")" = "$(printf 'run\n--standalone')" ] &&
   pass "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" ||
@@ -171,6 +183,26 @@ m="$run/metrics-$slug.json"
 [ "$(jq -r .opencode_version "$m")" = "2.4.2-stand-in" ] && pass "metrics omit the OpenCode version" || fail "metrics omit the OpenCode version" "$(cat "$m")"
 [ "$(jq -c '[.steps, .tokens.input, .tokens.output, .tokens.cache_read, .tokens.cache_write, .cost_usd, .exit_status]' "$m")" = "[2,4000,600,3300,100,0.02,0]" ] &&
   pass "metrics sum every step and skip non-json lines" || fail "metrics sum every step and skip non-json lines" "$(cat "$m")"
+
+# Two models start at once on one run dir: each gets its own config dir, and each OpenCode sees a
+# complete agent file in it.
+runp=$(new_run rp)
+runp_real=$(cd "$runp" && pwd -P)
+FAKE_ARGS_FILE="$tmp/args-a" FAKE_ENV_FILE="$tmp/env-a" "$review" "$checkout" "$runp" "opencode/glm-5.3#high" >/dev/null 2>&1 &
+pid_a=$!
+FAKE_ARGS_FILE="$tmp/args-b" FAKE_ENV_FILE="$tmp/env-b" "$review" "$checkout" "$runp" "opencode/deepseek-v4.1-flash#high" >/dev/null 2>&1 &
+pid_b=$!
+wait "$pid_a"; st_a=$?
+wait "$pid_b"; st_b=$?
+dir_a=$(sed -n 's/^OPENCODE_CONFIG_DIR=//p' "$tmp/env-a" 2>/dev/null)
+dir_b=$(sed -n 's/^OPENCODE_CONFIG_DIR=//p' "$tmp/env-b" 2>/dev/null)
+[ "$st_a" -eq 0 ] && [ "$st_b" -eq 0 ] && [ -n "$dir_a" ] && [ "$dir_a" != "$dir_b" ] &&
+  [ "$(dirname "$dir_a")" = "$runp_real" ] && [ "$(dirname "$dir_b")" = "$runp_real" ] &&
+  [ "$(ls "$dir_a/agents")" = "second-look-reviewer.md" ] && [ "$(ls "$dir_b/agents")" = "second-look-reviewer.md" ] &&
+  [ "$(ls -A "$dir_a")" = "agents" ] &&
+  sed -n 6,8p "$tmp/env-a.agent" | tr -d ' ' | paste -sd' ' - | grep -qx -- '-action:"\*" resource:"\*" effect:deny' &&
+  sed -n 6,8p "$tmp/env-b.agent" | tr -d ' ' | paste -sd' ' - | grep -qx -- '-action:"\*" resource:"\*" effect:deny' &&
+  pass "parallel runs share one agent file" || fail "parallel runs share one agent file" "$st_a $st_b: $dir_a / $dir_b"
 
 # OpenCode's own failure status comes back, and the metrics still record it.
 run=$(new_run r3)

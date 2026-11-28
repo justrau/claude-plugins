@@ -63,7 +63,7 @@ Start the reviewer agent with the brief, in the background. When its report arri
    - If it refuses or fails, say so and continue with the other reviewers.
 3. **Reports:** each model writes `report-<slug>.md` in the run dir; read it when its command exits.
 4. **Evaluation log:** after section 4, write `<run-dir>/grades.json` (its shape is in the header of `../../scripts/opencode-review-log.sh`). For each model, give the counts of `confirmed`, `false` and `duplicate` findings, and `missed`: the confirmed findings from the other reviewers that this model did not report. Then run `../../scripts/opencode-review-log.sh append <run-dir>`, and show the output of `../../scripts/opencode-review-log.sh summary` in the hand-back.
-   - After `append`, delete `brief.md`, `events-*`, `stderr-*`, `report-*` and the generated `opencode/` folder from the run dir. Keep `metrics-*` and `grades.json`.
+   - After `append`, delete `brief.md`, `events-*`, `stderr-*`, `report-*` and the generated `opencode.*` folders from the run dir. Keep `metrics-*` and `grades.json`.
 
 ## 4. Verify before anything reaches anyone
 
