@@ -25,7 +25,7 @@ permissions:
     resource: "*"
     effect: deny
   - action: external_directory
-    resource: "~/.local/state/opencode-review/*"
+    resource: "__RUN_DIR__/*"
     effect: allow
 ---
 

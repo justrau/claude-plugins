@@ -61,6 +61,7 @@ mkdir -p "$state/r1/nested"; echo brief >"$state/r1/nested/brief.md"
 refuses "accepts a run dir nested deeper than one level" "$state/r1/nested" "opencode/glm-5.3"
 ln -s "$tmp" "$state/link"; echo brief >"$tmp/brief.md"
 refuses "trusts a symlinked run dir by its name" "$state/link" "opencode/glm-5.3"
+refuses "writes a run dir path that breaks the agent's YAML" "$(new_run 'bad"quote')" "opencode/glm-5.3"
 mkdir -p "$state/nobrief"
 refuses "starts without a brief" "$state/nobrief" "opencode/glm-5.3"
 rm -f "$FAKE_ARGS_FILE"
@@ -78,6 +79,17 @@ cp -R "$here/../scripts" "$tmp/copy/"
 rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs without its pinned agent file" || fail "runs without its pinned agent file" "not refused"
+# The agent file is a template whose run dir placeholder must appear exactly once.
+grep -v '__RUN_DIR__' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with a template that lacks the run dir placeholder" ||
+  fail "runs with a template that lacks the run dir placeholder" "not refused"
+{ cat "$here/../opencode/agents/second-look-reviewer.md"; echo "# __RUN_DIR__"; } >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with a template that has the placeholder twice" ||
+  fail "runs with a template that has the placeholder twice" "not refused"
 
 # The checkout is untrusted: OpenCode does not resolve symlinks when it checks that a read stays
 # in the project, so a link to a file outside would leak it. Only the repository's top level runs.
@@ -116,12 +128,20 @@ args=$(cat "$FAKE_ARGS_FILE" 2>/dev/null)
 [ "$(sed -n 1p <<<"$args")" = "$checkout_real" ] && pass "runs from the checkout" || fail "runs from the checkout" "cwd $(sed -n 1p <<<"$args")"
 grep -qx -- "--agent" <<<"$args" && grep -qx "second-look-reviewer" <<<"$args" && grep -qx -- "opencode/deepseek-v4.1-flash#high" <<<"$args" &&
   grep -qx -- "--format" <<<"$args" && pass "passes the pinned agent, model and json format" || fail "passes the pinned agent, model and json format" "$args"
-config_dir=$(cd "$here/../opencode" && pwd -P)
+config_dir="$(cd "$run" && pwd -P)/opencode"
 env_seen=$(cat "$FAKE_ENV_FILE" 2>/dev/null)
 [ "$env_seen" = "$(printf 'OPENCODE_CONFIG_DIR=%s\nOPENCODE_CONFIG_PROJECT_DISABLE=1\nOPENCODE_DISABLE_CLAUDE_CODE=1\nOPENCODE_DISABLE_PROJECT_CONFIG=1' "$config_dir")" ] &&
   [ "$(sed -n 2,3p <<<"$args")" = "$(printf 'run\n--standalone')" ] &&
   pass "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" ||
   fail "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" "$env_seen / $(sed -n 2,3p <<<"$args")"
+# The generated agent may read only this run dir outside the checkout, not earlier runs.
+gen="$config_dir/agents/second-look-reviewer.md"
+ext=$(awk '/^ *- action: external_directory/ { x = 1; next } x && /resource:/ { r = $2 } x && /effect: allow/ { print r } /^ *- action:/ { x = 0 }' "$gen" 2>/dev/null | tr -d '"')
+[ "$ext" = "$(cd "$run" && pwd -P)/*" ] && ! grep -q '__RUN_DIR__' "$gen" &&
+  sed '/__RUN_DIR__/d' "$here/../opencode/agents/second-look-reviewer.md" | diff -q - <(grep -v -F "$(cd "$run" && pwd -P)/*" "$gen") >/dev/null &&
+  pass "agent may read every earlier run" || fail "agent may read every earlier run" "allows: $ext"
+[ "$(stat -f %Lp "$run" 2>/dev/null || stat -c %a "$run")" = 700 ] &&
+  pass "leaves the run dir open to other users" || fail "leaves the run dir open to other users" "$(stat -f %Lp "$run")"
 [ "$(cat "$run/report-$slug.md")" = "$(printf '## Findings\n1. An example finding.')" ] &&
   pass "report keeps only the last message's text" || fail "report keeps only the last message's text" "$(cat "$run/report-$slug.md")"
 m="$run/metrics-$slug.json"

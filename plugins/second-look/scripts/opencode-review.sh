@@ -63,11 +63,20 @@ run_real=$(cd "$run_dir" && pwd -P)
 
 # The checkout is untrusted: OpenCode loads a project's own config, plugins and agents from the
 # folder it runs in, so a change under review could replace our agent or run code on load. Turn
-# project config off, take config (and the agent) from this plugin only, and run standalone:
-# the background service would ignore these variables.
-config_dir="$(cd "$(dirname "$0")/.." && pwd -P)/opencode"
-[ -f "$config_dir/agents/second-look-reviewer.md" ] ||
-  die "agent file $config_dir/agents/second-look-reviewer.md is missing"
+# project config off, take config (and the agent) only from a folder this script writes in the run
+# dir, and run standalone: the background service would ignore these variables.
+# The plugin's agent file is a template: its one __RUN_DIR__ becomes this run dir, so the model
+# can read this run's brief but not the briefs and reports of earlier runs.
+template="$(cd "$(dirname "$0")/.." && pwd -P)/opencode/agents/second-look-reviewer.md"
+[ -f "$template" ] || die "agent file $template is missing"
+[ "$(grep -o '__RUN_DIR__' "$template" | wc -l | tr -d ' ')" = 1 ] ||
+  die "agent file $template must hold __RUN_DIR__ exactly once"
+case $run_real in *[\"\\]* | *$'\n'*) die "run dir path must not hold a quote, a backslash or a newline" ;; esac
+chmod 700 "$run_real"
+config_dir="$run_real/opencode"
+mkdir -p "$config_dir/agents"
+agent=$(<"$template")
+printf '%s\n' "${agent//__RUN_DIR__/"$run_real"}" >"$config_dir/agents/second-look-reviewer.md"
 
 # The caller's environment is untrusted too: OPENCODE_CONFIG, OPENCODE_CONFIG_CONTENT and others
 # can add permissions, and OPENCODE_CONFIG_PROJECT_DISABLE overrides OPENCODE_DISABLE_PROJECT_CONFIG
