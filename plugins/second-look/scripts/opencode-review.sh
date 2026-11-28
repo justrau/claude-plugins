@@ -11,6 +11,13 @@
 # it refuses to start.
 set -euo pipefail
 
+# Bash 4.4 or later: on 3.2 (macOS's /bin/bash) the quoted replacement that writes the agent file
+# keeps stray quotes, and an empty array fails under set -u.
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 4 ]; }; then
+  printf 'opencode-review: needs bash 4.4 or later, this is %s\n' "$BASH_VERSION" >&2
+  exit 2
+fi
+
 # Models allowed to read code: Zen models whose hosting is confirmed in the EU or the US.
 # Source: https://opencode.ai/docs/zen/ section "Privacy": "All our models are hosted in the US
 # and EU." (checked 2026-11-27). Add a model only with a source line like this one.
@@ -37,8 +44,9 @@ if [ "$model" != "$base" ]; then
 fi
 
 # Preflight: a missing tool must stop the review before the paid run, not halfway through it.
-for tool in opencode2 timeout jq; do
-  command -v "$tool" >/dev/null || die "$tool is not on PATH (needs OpenCode v2 as opencode2, coreutils timeout, jq)"
+for tool in opencode2 timeout jq git realpath; do
+  command -v "$tool" >/dev/null ||
+    die "$tool is not on PATH (needs OpenCode v2 as opencode2, coreutils timeout, jq, git, realpath)"
 done
 
 [ -d "$checkout" ] || die "checkout '$checkout' is not a directory"

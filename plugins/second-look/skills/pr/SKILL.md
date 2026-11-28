@@ -57,7 +57,7 @@ Start the reviewer agent with the brief, in the background. When its report arri
 **Other reviewers: OpenCode in parallel.** Read-only OpenCode reviewers, one per allowlisted model, next to the Claude reviewer and never instead of it. Paths below are relative to this skill's base directory.
 1. **Brief:** make a run dir `~/.local/state/opencode-review/<repo>-<short sha>-<time>/` and write `brief.md` into it: the same brief, then the method (the body of `../../agents/reviewer.md` without its frontmatter, as for Codex), then a note that this reviewer has no shell, so it does the method's steps that run commands by reading. Then the full diff (`git diff <merge-base>..<head>`, which you run).
 2. **Run:** start `../../scripts/opencode-review.sh <checkout> <run-dir> <model>` in the background with Bash, once for each model on the script's allowlist (with `#high`), at the same time as the Claude reviewer.
-   - The script pins this plugin's `second-look-reviewer` agent and ignores the checkout's own OpenCode config. It needs OpenCode v2 as `opencode2`, signed in to Zen, coreutils `timeout` and `jq`; it refuses to start when a tool is missing.
+   - The script pins this plugin's `second-look-reviewer` agent and ignores the checkout's own OpenCode config. It needs bash 4.4 or later, OpenCode v2 as `opencode2` signed in to Zen with its own login (the script unsets `OPENCODE_API_KEY`), coreutils `timeout`, `jq`, `git` and `realpath`; it refuses to start when one is missing.
    - If the user's own instructions name the models, use those, still through the script.
    - Never bypass the script: its allowlist is what keeps code on models hosted in the EU and US.
    - If it refuses or fails, say so and continue with the other reviewers.

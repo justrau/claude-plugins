@@ -122,19 +122,30 @@ rm -f "$FAKE_ARGS_FILE"
 bin_without() {
   local d="$tmp/bin-without-$1" t p
   mkdir -p "$d"
-  for t in bash env git find realpath grep wc tr date dirname basename chmod mkdir cat sort sed head awk rm stat jq timeout; do
+  for t in bash env git find realpath grep wc tr date dirname basename chmod mkdir mktemp cp mv cat sort sed head tail awk rm stat ls jq timeout; do
     [ "$t" = "$1" ] && continue
     p=$(command -v "$t") && ln -sf "$p" "$d/$t"
   done
   [ "$1" = opencode2 ] || ln -sf "$here/fixtures/bin/opencode2" "$d/opencode2"
   echo "$d"
 }
-for tool in opencode2 timeout jq; do
+for tool in opencode2 timeout jq git realpath; do
   rm -f "$FAKE_ARGS_FILE"
   err=$(PATH=$(bin_without "$tool") "$review" "$checkout" "$run" "opencode/glm-5.3" 2>&1 >/dev/null); status=$?
-  [ "$status" -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && grep -q "$tool" <<<"$err" &&
+  [ "$status" -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && grep -q "$tool is not on PATH" <<<"$err" &&
     pass "starts the run without $tool" || fail "starts the run without $tool" "status $status: $err"
 done
+
+# An old bash (macOS ships 3.2) writes stray quotes in the agent file and fails on empty arrays.
+old_bash=/bin/bash
+if [ -x "$old_bash" ] && [ "$("$old_bash" -c 'echo $(( BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] ))')" -lt 404 ]; then
+  rm -f "$FAKE_ARGS_FILE"
+  err=$("$old_bash" "$review" "$checkout" "$run" "opencode/glm-5.3" 2>&1 >/dev/null); status=$?
+  [ "$status" -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && grep -q "bash 4.4" <<<"$err" &&
+    pass "runs on a bash older than 4.4" || fail "runs on a bash older than 4.4" "status $status: $err"
+else
+  echo "skip runs on a bash older than 4.4 (no old bash at $old_bash)"
+fi
 
 # The checkout is untrusted: OpenCode does not resolve symlinks when it checks that a read stays
 # in the project, so a tracked link to a file outside would leak it. Only tracked links count:
