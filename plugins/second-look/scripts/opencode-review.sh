@@ -65,6 +65,7 @@ root_real=$(cd "$STATE_ROOT" && pwd -P)
 run_real=$(cd "$run_dir" && pwd -P)
 [ "$(dirname "$run_real")" = "$root_real" ] || die "run dir must sit directly under $STATE_ROOT"
 [ -f "$run_real/brief.md" ] || die "run dir has no brief.md"
+run_id=$(basename "$run_real")
 
 # The checkout is untrusted: OpenCode loads a project's own config, plugins and agents from the
 # folder it runs in, so a change under review could replace our agent or run code on load. Turn
@@ -78,7 +79,8 @@ template="$(cd "$(dirname "$0")/.." && pwd -P)/opencode/agents/second-look-revie
 [ -f "$template" ] || die "agent file $template is missing"
 [ "$(grep -o '__BRIEF_DIR__' "$template" | wc -l | tr -d ' ')" = 1 ] ||
   die "agent file $template must hold __BRIEF_DIR__ exactly once"
-case $run_real in *[\"\\]* | *$'\n'*) die "run dir path must not hold a quote, a backslash or a newline" ;; esac
+# The run dir path becomes a permission pattern, where * and ? are wildcards, inside a YAML string.
+[[ $run_id =~ ^[A-Za-z0-9._-]+$ ]] || die "run dir name '$run_id' may hold only letters, digits, '.', '_' and '-'"
 chmod 700 "$run_real"
 brief_dir=$(mktemp -d "$run_real/brief.XXXXXX")
 cp "$run_real/brief.md" "$brief_dir/brief.md"
@@ -117,7 +119,6 @@ slug=${model//\//-}
 slug=${slug//#/-}
 events="$run_real/events-$slug.jsonl"
 report="$run_real/report-$slug.md"
-run_id=$(basename "$run_real")
 prompt="Read $brief_dir/brief.md and follow it. Your final message is the report."
 
 version=$(cd "$run_real" && env "${scrub[@]}" "${our_env[@]}" opencode2 --version 2>/dev/null | head -n 1) || true
