@@ -37,6 +37,23 @@ if [ "$model" != "$base" ]; then
 fi
 
 [ -d "$checkout" ] || die "checkout '$checkout' is not a directory"
+checkout_real=$(cd "$checkout" && pwd -P)
+# Only a repository's top level, so $HOME or a parent folder cannot pass as a checkout.
+top=$(git -C "$checkout_real" rev-parse --show-toplevel 2>/dev/null) ||
+  die "checkout '$checkout' is not a git repository"
+[ "$(cd "$top" && pwd -P)" = "$checkout_real" ] ||
+  die "checkout '$checkout' is not the top level of its repository"
+# OpenCode checks that a read stays in the project without resolving symlinks, so a change could
+# add a link to a file outside (a key, a secret). Refuse a link that leaves the checkout or does
+# not resolve.
+while IFS= read -r -d '' link; do
+  [ -e "$link" ] || die "symlink '$link' does not resolve"
+  target=$(realpath "$link") || die "symlink '$link' does not resolve"
+  case $target in
+    "$checkout_real" | "$checkout_real"/*) ;;
+    *) die "symlink '$link' points outside the checkout" ;;
+  esac
+done < <(find "$checkout_real" -path "$checkout_real/.git" -prune -o -type l -print0)
 [ -d "$STATE_ROOT" ] || die "state folder $STATE_ROOT does not exist"
 [ -d "$run_dir" ] || die "run dir '$run_dir' is not a directory"
 root_real=$(cd "$STATE_ROOT" && pwd -P)
@@ -73,7 +90,7 @@ prompt="Read $run_real/brief.md and follow it. Your final message is the report.
 
 start=$(date +%s)
 status=0
-(cd "$checkout" && exec env "${scrub[@]}" "${our_env[@]}" \
+(cd "$checkout_real" && exec env "${scrub[@]}" "${our_env[@]}" \
   timeout "$TIMEOUT_S" opencode2 run --standalone --agent second-look-reviewer -m "$model" \
   --title "review $run_id" --format json "$prompt") \
   >"$events" 2>"$run_real/stderr-$slug.log" </dev/null || status=$?

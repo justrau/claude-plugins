@@ -28,6 +28,8 @@ export OPENCODE_PERMISSION='{"bash":"allow"}'
 state="$HOME/.local/state/opencode-review"
 checkout="$tmp/checkout"
 mkdir -p "$state" "$checkout"
+git init -q "$checkout"
+checkout_real=$(cd "$checkout" && pwd -P)
 
 fails=0
 pass() { printf 'ok   %s\n' "$1"; }
@@ -37,9 +39,9 @@ new_run() { rm -f "$FAKE_ARGS_FILE"; local d="$state/$1"; mkdir -p "$d"; echo "b
 
 # Each case: the review must refuse with status 2 before opencode2 runs.
 refuses() {
-  local name=$1 run=$2 model=$3 status
-  rm -f "$tmp/args"
-  "$review" "$checkout" "$run" "$model" 2>/dev/null; status=$?
+  local name=$1 run=$2 model=$3 from=${4:-$checkout} status
+  rm -f "$FAKE_ARGS_FILE"
+  "$review" "$from" "$run" "$model" 2>/dev/null; status=$?
   if [ "$status" -ne 2 ]; then fail "$name" "status $status, expected 2"
   elif [ -e "$FAKE_ARGS_FILE" ]; then fail "$name" "opencode2 ran"
   else pass "$name"; fi
@@ -77,6 +79,33 @@ rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs without its pinned agent file" || fail "runs without its pinned agent file" "not refused"
 
+# The checkout is untrusted: OpenCode does not resolve symlinks when it checks that a read stays
+# in the project, so a link to a file outside would leak it. Only the repository's top level runs.
+echo secret >"$tmp/outside-secret"
+mkdir -p "$checkout/docs"
+ln -s "$tmp/outside-secret" "$checkout/docs/x"
+refuses "follows a symlink out of the checkout" "$run" "opencode/glm-5.3"
+rm "$checkout/docs/x"
+ln -s "$tmp" "$checkout/docs/up"
+refuses "follows a symlinked folder out of the checkout" "$run" "opencode/glm-5.3"
+rm "$checkout/docs/up"
+mkdir -p "$tmp/checkout-sibling"; echo secret >"$tmp/checkout-sibling/key"
+ln -s "$tmp/checkout-sibling/key" "$checkout/docs/sib"
+refuses "matches the checkout path by prefix" "$run" "opencode/glm-5.3"
+rm "$checkout/docs/sib"
+ln -s "$checkout/missing-target" "$checkout/docs/dangling"
+refuses "trusts a dangling symlink" "$run" "opencode/glm-5.3"
+rm "$checkout/docs/dangling"
+refuses "runs from a folder below the top level" "$run" "opencode/glm-5.3" "$checkout/docs"
+mkdir -p "$tmp/not-a-repo"
+refuses "runs from a folder that is not a repository" "$run" "opencode/glm-5.3" "$tmp/not-a-repo"
+echo inside >"$checkout/docs/real.md"
+ln -s ../docs/real.md "$checkout/docs/inside"
+rm -f "$FAKE_ARGS_FILE"
+"$review" "$checkout" "$run" "opencode/glm-5.3" >/dev/null 2>&1
+[ $? -eq 0 ] && [ -e "$FAKE_ARGS_FILE" ] && pass "refuses a symlink that stays inside the checkout" ||
+  fail "refuses a symlink that stays inside the checkout" "did not run"
+
 # An allowed model runs, from the checkout, with the pinned agent and model, and writes its files.
 run=$(new_run r2)
 "$review" "$checkout" "$run" "opencode/deepseek-v4.1-flash#high" 2>/dev/null
@@ -84,7 +113,7 @@ status=$?
 slug="opencode-deepseek-v4.1-flash-high"
 [ "$status" -eq 0 ] && pass "allowed model with a variant runs" || fail "allowed model with a variant runs" "status $status"
 args=$(cat "$FAKE_ARGS_FILE" 2>/dev/null)
-[ "$(sed -n 1p <<<"$args")" = "$checkout" ] && pass "runs from the checkout" || fail "runs from the checkout" "cwd $(sed -n 1p <<<"$args")"
+[ "$(sed -n 1p <<<"$args")" = "$checkout_real" ] && pass "runs from the checkout" || fail "runs from the checkout" "cwd $(sed -n 1p <<<"$args")"
 grep -qx -- "--agent" <<<"$args" && grep -qx "second-look-reviewer" <<<"$args" && grep -qx -- "opencode/deepseek-v4.1-flash#high" <<<"$args" &&
   grep -qx -- "--format" <<<"$args" && pass "passes the pinned agent, model and json format" || fail "passes the pinned agent, model and json format" "$args"
 config_dir=$(cd "$here/../opencode" && pwd -P)
