@@ -209,6 +209,29 @@ git -C "$checkout" -c protocol.file.allow=always submodule --quiet add "$sub_src
 refuses "skips the links of submodules" "$run" "opencode/glm-5.3"
 git -C "$checkout" rm -q -r --cached sub .gitmodules
 rm -rf "$checkout/sub" "$checkout/.gitmodules" "$checkout/.git/modules"
+# The checkout may not be $HOME, an ancestor of it, or a folder that holds the state root. Each
+# case has its own clean HOME, so nothing else would refuse it.
+scope_refuses() {
+  local name=$1 home=$2 from=$3 status
+  mkdir -p "$home/.local/state/opencode-review/s1"; echo brief >"$home/.local/state/opencode-review/s1/brief.md"
+  git init -q "$from"
+  rm -f "$FAKE_ARGS_FILE"
+  HOME=$home "$review" "$from" "$home/.local/state/opencode-review/s1" "opencode/glm-5.3" 2>/dev/null; status=$?
+  [ "$status" -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "$name" || fail "$name" "status $status"
+  rm -rf "$from/.git"
+}
+scope_refuses "accepts \$HOME as the checkout" "$tmp/scope-home" "$tmp/scope-home"
+scope_refuses "accepts an ancestor of \$HOME as the checkout" "$tmp/scope-anc/home" "$tmp/scope-anc"
+scope_refuses "accepts a checkout that holds the state root" "$tmp/scope-local/home" "$tmp/scope-local/home/.local"
+scope_refuses "accepts a checkout inside the state root" "$tmp/scope-in/home" "$tmp/scope-in/home/.local/state/opencode-review/repo"
+# The same clean HOME runs a checkout beside it, so the refusals above come from the scope check.
+mkdir -p "$tmp/scope-ok/home/.local/state/opencode-review/s1" "$tmp/scope-ok/repo"
+echo brief >"$tmp/scope-ok/home/.local/state/opencode-review/s1/brief.md"
+git init -q "$tmp/scope-ok/repo"
+rm -f "$FAKE_ARGS_FILE"
+HOME="$tmp/scope-ok/home" "$review" "$tmp/scope-ok/repo" "$tmp/scope-ok/home/.local/state/opencode-review/s1" "opencode/glm-5.3" >/dev/null 2>&1
+[ $? -eq 0 ] && [ -e "$FAKE_ARGS_FILE" ] && pass "refuses a checkout beside \$HOME" || fail "refuses a checkout beside \$HOME" "did not run"
+
 # A folder the walk cannot read may hide a link.
 mkdir -p "$checkout/docs/locked"; chmod 000 "$checkout/docs/locked"
 refuses "trusts a walk that could not read a folder" "$run" "opencode/glm-5.3"

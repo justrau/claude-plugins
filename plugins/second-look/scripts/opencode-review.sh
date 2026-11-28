@@ -56,6 +56,21 @@ top=$(git -C "$checkout_real" rev-parse --show-toplevel 2>/dev/null) ||
   die "checkout '$checkout' is not a git repository"
 [ "$(cd "$top" && pwd -P)" = "$checkout_real" ] ||
   die "checkout '$checkout' is not the top level of its repository"
+# A repository at $HOME (dotfiles) or above it would pass the top-level check, and would let the
+# model read all of $HOME. The checkout may also not hold the state root, nor sit inside it.
+home_real=$(cd "$HOME" && pwd -P)
+state_real=$home_real/.local/state/opencode-review
+[ -d "$STATE_ROOT" ] && state_real=$(cd "$STATE_ROOT" && pwd -P)
+[ "$checkout_real" != / ] || die "checkout '$checkout' is the root folder"
+case $home_real/ in
+  "$checkout_real"/*) die "checkout '$checkout' is \$HOME or a folder above it" ;;
+esac
+case $state_real/ in
+  "$checkout_real"/*) die "checkout '$checkout' holds the state folder $STATE_ROOT" ;;
+esac
+case $checkout_real/ in
+  "$state_real"/*) die "checkout '$checkout' sits inside the state folder $STATE_ROOT" ;;
+esac
 # OpenCode checks that a read stays in the project without resolving symlinks, so a change could
 # add a link to a file outside (a key, a secret), or to a file inside that the read rules deny
 # (docs/notes.txt -> ../.env). Walk the file system, not git's index or .gitignore: a tracked file
