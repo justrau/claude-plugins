@@ -100,6 +100,13 @@ status=$?
 [ "$status" -eq 7 ] && [ "$(jq .exit_status "$run/metrics-opencode-glm-5.3.json")" = 7 ] &&
   pass "returns and records OpenCode's failure status" || fail "returns and records OpenCode's failure status" "status $status"
 
+# The agent allows only read, glob and its run dir. grep's permission resource is the pattern,
+# not a file, so a grep allow would read .env lines past the read denies.
+agent_src="$here/../opencode/agents/second-look-reviewer.md"
+allowed=$(awk '/^ *- action:/ { a = $3 } /^ *effect: allow/ { print a }' "$agent_src" | tr -d '"' | sort -u | tr '\n' ' ')
+[ "$allowed" = "external_directory glob read " ] &&
+  pass "agent allows grep, which reads past the read denies" || fail "agent allows grep, which reads past the read denies" "$allowed"
+
 # The log: one row per graded review, refused when grades and metrics disagree or the run repeats.
 run="$state/r2"
 printf '%s\n' '{"repo":"example","diff_lines":120,"other_reviewers":["claude"],"models":{"opencode/glm-5.3":{"confirmed":1,"false":0,"duplicate":0,"missed":0}}}' >"$run/grades.json"
