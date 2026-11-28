@@ -16,6 +16,10 @@ export HOME="$tmp/home"
 export PATH="$here/fixtures/bin:$PATH"
 export FAKE_EVENTS="$here/fixtures/events.jsonl"
 export FAKE_ARGS_FILE="$tmp/args"
+export FAKE_ENV_FILE="$tmp/env"
+# Wrong values from the caller's environment: the script must set its own.
+export OPENCODE_DISABLE_PROJECT_CONFIG=0
+export OPENCODE_CONFIG_DIR="$tmp/wrong-config"
 state="$HOME/.local/state/opencode-review"
 checkout="$tmp/checkout"
 mkdir -p "$state" "$checkout"
@@ -61,6 +65,12 @@ rm -f "$FAKE_ARGS_FILE"
 rm -f "$FAKE_ARGS_FILE"
 "$review" "$checkout" "$run" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs without a model argument" || fail "runs without a model argument" "not refused"
+# A copied script tree without the agent file, so the real file is never moved.
+mkdir -p "$tmp/copy/opencode/agents"
+cp -R "$here/../scripts" "$tmp/copy/"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs without its pinned agent file" || fail "runs without its pinned agent file" "not refused"
 
 # An allowed model runs, from the checkout, with the pinned agent and model, and writes its files.
 run=$(new_run r2)
@@ -72,6 +82,11 @@ args=$(cat "$FAKE_ARGS_FILE" 2>/dev/null)
 [ "$(sed -n 1p <<<"$args")" = "$checkout" ] && pass "runs from the checkout" || fail "runs from the checkout" "cwd $(sed -n 1p <<<"$args")"
 grep -qx -- "--agent" <<<"$args" && grep -qx "second-look-reviewer" <<<"$args" && grep -qx -- "opencode/deepseek-v4.1-flash#high" <<<"$args" &&
   grep -qx -- "--format" <<<"$args" && pass "passes the pinned agent, model and json format" || fail "passes the pinned agent, model and json format" "$args"
+config_dir=$(cd "$here/../opencode" && pwd -P)
+env_seen=$(cat "$FAKE_ENV_FILE" 2>/dev/null)
+[ "$env_seen" = "$(printf 'OPENCODE_DISABLE_PROJECT_CONFIG=1\nOPENCODE_CONFIG_DIR=%s' "$config_dir")" ] &&
+  [ "$(sed -n 2,3p <<<"$args")" = "$(printf 'run\n--standalone')" ] &&
+  pass "loads the checkout's own OpenCode config" || fail "loads the checkout's own OpenCode config" "$env_seen / $(sed -n 2,3p <<<"$args")"
 [ "$(cat "$run/report-$slug.md")" = "$(printf '## Findings\n1. An example finding.')" ] &&
   pass "report keeps only the last message's text" || fail "report keeps only the last message's text" "$(cat "$run/report-$slug.md")"
 m="$run/metrics-$slug.json"

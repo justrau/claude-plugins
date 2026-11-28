@@ -56,6 +56,10 @@ plugins/second-look/
   skills/pr/rereview.md                  a later round on an already-reviewed PR
   skills/pr/check_anchors.py             checks a review payload's inline anchors before posting
   skills/guide/SKILL.md                  skill; installed as /second-look:guide
+  opencode/agents/second-look-reviewer.md  read-only OpenCode agent; the review script pins it
+  scripts/opencode-review.sh             one OpenCode review on an EU/US-hosted allowlisted model
+  scripts/opencode-review-log.sh         evaluation log of OpenCode reviews: append, summary
+  tests/opencode-review.test.sh          tests for both scripts, with a stand-in opencode2
 ```
 
 ### Copying instead of installing

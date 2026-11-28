@@ -44,6 +44,14 @@ run_real=$(cd "$run_dir" && pwd -P)
 [ "$(dirname "$run_real")" = "$root_real" ] || die "run dir must sit directly under $STATE_ROOT"
 [ -f "$run_real/brief.md" ] || die "run dir has no brief.md"
 
+# The checkout is untrusted: OpenCode loads a project's own config, plugins and agents from the
+# folder it runs in, so a change under review could replace our agent or run code on load. Turn
+# project config off, take config (and the agent) from this plugin only, and run standalone:
+# the background service would ignore these variables.
+config_dir="$(cd "$(dirname "$0")/.." && pwd -P)/opencode"
+[ -f "$config_dir/agents/second-look-reviewer.md" ] ||
+  die "agent file $config_dir/agents/second-look-reviewer.md is missing"
+
 slug=${model//\//-}
 slug=${slug//#/-}
 events="$run_real/events-$slug.jsonl"
@@ -53,7 +61,8 @@ prompt="Read $run_real/brief.md and follow it. Your final message is the report.
 
 start=$(date +%s)
 status=0
-(cd "$checkout" && exec timeout "$TIMEOUT_S" opencode2 run --agent second-look-reviewer -m "$model" \
+(cd "$checkout" && OPENCODE_DISABLE_PROJECT_CONFIG=1 OPENCODE_CONFIG_DIR="$config_dir" \
+  exec timeout "$TIMEOUT_S" opencode2 run --standalone --agent second-look-reviewer -m "$model" \
   --title "review $run_id" --format json "$prompt") \
   >"$events" 2>"$run_real/stderr-$slug.log" </dev/null || status=$?
 wall=$(( $(date +%s) - start ))

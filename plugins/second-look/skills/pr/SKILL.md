@@ -55,14 +55,14 @@ Start the reviewer agent with the brief, in the background. When its report arri
 3. Codex writes its report to the `-o` file; read it when the command exits.
 
 **Other reviewers: OpenCode in parallel.** Read-only OpenCode reviewers, one per allowlisted model, next to the Claude reviewer and never instead of it. Paths below are relative to this skill's base directory.
-1. **Setup, once:** link `../../opencode/agents/second-look-reviewer.md` into `~/.config/opencode/agents/`. If `opencode2 debug agents` does not list `second-look-reviewer`, say so and continue without OpenCode.
-2. **Brief:** make a run dir `~/.local/state/opencode-review/<repo>-<short sha>-<time>/` and write `brief.md` into it: the same brief, then the method (the body of `../../agents/reviewer.md` without its frontmatter, as for Codex), then a note that this reviewer has no shell, so it does the method's steps that run commands by reading. Then the full diff (`git diff <merge-base>..<head>`, which you run).
-3. **Run:** start `../../scripts/opencode-review.sh <checkout> <run-dir> <model>` in the background with Bash, once for each model on the script's allowlist (with `#high`), at the same time as the Claude reviewer.
+1. **Brief:** make a run dir `~/.local/state/opencode-review/<repo>-<short sha>-<time>/` and write `brief.md` into it: the same brief, then the method (the body of `../../agents/reviewer.md` without its frontmatter, as for Codex), then a note that this reviewer has no shell, so it does the method's steps that run commands by reading. Then the full diff (`git diff <merge-base>..<head>`, which you run).
+2. **Run:** start `../../scripts/opencode-review.sh <checkout> <run-dir> <model>` in the background with Bash, once for each model on the script's allowlist (with `#high`), at the same time as the Claude reviewer.
+   - The script pins this plugin's `second-look-reviewer` agent and ignores the checkout's own OpenCode config, so no setup is needed.
    - If the user's own instructions name the models, use those, still through the script.
    - Never bypass the script: its allowlist is what keeps code on models hosted in the EU and US.
    - If it refuses or fails, say so and continue with the other reviewers.
-4. **Reports:** each model writes `report-<slug>.md` in the run dir; read it when its command exits.
-5. **Evaluation log:** after section 4, write `<run-dir>/grades.json` (its shape is in the header of `../../scripts/opencode-review-log.sh`). For each model, give the counts of `confirmed`, `false` and `duplicate` findings, and `missed`: the confirmed findings from the other reviewers that this model did not report. Then run `../../scripts/opencode-review-log.sh append <run-dir>`, and show the output of `../../scripts/opencode-review-log.sh summary` in the hand-back.
+3. **Reports:** each model writes `report-<slug>.md` in the run dir; read it when its command exits.
+4. **Evaluation log:** after section 4, write `<run-dir>/grades.json` (its shape is in the header of `../../scripts/opencode-review-log.sh`). For each model, give the counts of `confirmed`, `false` and `duplicate` findings, and `missed`: the confirmed findings from the other reviewers that this model did not report. Then run `../../scripts/opencode-review-log.sh append <run-dir>`, and show the output of `../../scripts/opencode-review-log.sh summary` in the hand-back.
 
 ## 4. Verify before anything reaches anyone
 
