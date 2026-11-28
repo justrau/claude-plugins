@@ -246,11 +246,26 @@ printf 'build/\n' >"$checkout/.gitignore"
 mkdir -p "$checkout/build"; ln -s "$tmp/outside-secret" "$checkout/build/out"
 refuses "skips a link that the repository's .gitignore hides" "$run" "opencode/glm-5.3"
 rm -rf "$checkout/build" "$checkout/.gitignore"
+# Only real folders are skipped by name: a link named like an install folder or .git is checked.
+ln -s "$tmp" "$checkout/node_modules"
+refuses "skips a link named node_modules" "$run" "opencode/glm-5.3"
+rm "$checkout/node_modules"
+ln -s "$tmp" "$checkout/docs/.git"
+refuses "skips a link named .git" "$run" "opencode/glm-5.3"
+rm "$checkout/docs/.git"
+# A link the change commits inside a real install folder is checked through the index.
+mkdir -p "$checkout/node_modules"
+track_link "$tmp/outside-secret" node_modules/leak
+refuses "skips a tracked link inside a real node_modules folder" "$run" "opencode/glm-5.3"
+untrack_link node_modules/leak
+rmdir "$checkout/node_modules"
 # An install folder name does not hide a link that the change itself tracks there.
 mkdir -p "$checkout/src/vendor"
 track_link "$tmp/outside-secret" src/vendor/leak
 refuses "skips a link in an install folder that the change tracks" "$run" "opencode/glm-5.3"
 untrack_link src/vendor/leak
+git init -q "$tmp/bad-index"; echo "not an index" >"$tmp/bad-index/.git/index"
+refuses "trusts the tracked link list when git ls-files fails" "$run" "opencode/glm-5.3" "$tmp/bad-index"
 refuses "runs from a folder below the top level" "$run" "opencode/glm-5.3" "$checkout/docs"
 mkdir -p "$tmp/not-a-repo"
 refuses "runs from a folder that is not a repository" "$run" "opencode/glm-5.3" "$tmp/not-a-repo"
