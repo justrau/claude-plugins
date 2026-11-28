@@ -1,7 +1,7 @@
 ---
 name: pr
-description: Review a pull request, branch or commit range end to end with the reviewer agent - gather the context it needs, run it in a fresh context, verify its findings, then either fix them (your own change) or grade and post them as one GitHub review (someone else's PR). Add the word codex to run a Codex reviewer in parallel. Use whenever someone asks to review a PR or a branch, and before opening your own PR. Prefer this over diff-only review commands.
-argument-hint: "[PR number, URL, branch or range] [codex] [fix|post]"
+description: Review a pull request, branch or commit range end to end with the reviewer agent - gather the context it needs, run it in a fresh context, verify its findings, then either fix them (your own change) or grade and post them as one GitHub review (someone else's PR). Add codex or opencode to run Codex or OpenCode reviewers in parallel. Use whenever someone asks to review a PR or a branch, and before opening your own PR. Prefer this over diff-only review commands.
+argument-hint: "[PR number, URL, branch or range] [codex] [opencode] [fix|post]"
 ---
 
 # Review a PR, branch or range
@@ -11,6 +11,7 @@ The reviewer agent from this plugin does the review (`second-look:reviewer`, or 
 Arguments: `$ARGUMENTS`.
 - **Target:** a PR number or URL, a branch or a commit range. Without one, review the current branch against its base.
 - **`codex`** (also `astra`, `two`): add a Codex reviewer in parallel (section 3).
+- **`opencode`**: add read-only OpenCode reviewers in parallel, one per allowlisted model (section 3).
 - **`fix`** or **`post`**: force the mode (section 5). Without it, choose the mode from the author.
 
 ## 1. Pin down what is reviewed
@@ -53,10 +54,20 @@ Start the reviewer agent with the brief, in the background. When its report arri
    - Never add `-a`, `--dangerously-bypass-approvals-and-sandbox` or a writable sandbox. If `codex` is missing or fails, say so and continue with the Claude review alone.
 3. Codex writes its report to the `-o` file; read it when the command exits.
 
+**Other reviewers: OpenCode in parallel.** Read-only OpenCode reviewers, one per allowlisted model, next to the Claude reviewer and never instead of it. Paths below are relative to this skill's base directory.
+1. **Setup, once:** link `../../opencode/agents/second-look-reviewer.md` into `~/.config/opencode/agents/`. If `opencode2 debug agents` does not list `second-look-reviewer`, say so and continue without OpenCode.
+2. **Brief:** make a run dir `~/.local/state/opencode-review/<repo>-<short sha>-<time>/` and write `brief.md` into it: the same brief, then the method (the body of `../../agents/reviewer.md` without its frontmatter, as for Codex), then a note that this reviewer has no shell, so it does the method's steps that run commands by reading. Then the full diff (`git diff <merge-base>..<head>`, which you run).
+3. **Run:** start `../../scripts/opencode-review.sh <checkout> <run-dir> <model>` in the background with Bash, once for each model on the script's allowlist (with `#high`), at the same time as the Claude reviewer.
+   - If the user's own instructions name the models, use those, still through the script.
+   - Never bypass the script: its allowlist is what keeps code on models hosted in the EU and US.
+   - If it refuses or fails, say so and continue with the other reviewers.
+4. **Reports:** each model writes `report-<slug>.md` in the run dir; read it when its command exits.
+5. **Evaluation log:** after section 4, write `<run-dir>/grades.json` (its shape is in the header of `../../scripts/opencode-review-log.sh`). For each model, give the counts of `confirmed`, `false` and `duplicate` findings, and `missed`: the confirmed findings from the other reviewers that this model did not report. Then run `../../scripts/opencode-review-log.sh append <run-dir>`, and show the output of `../../scripts/opencode-review-log.sh summary` in the hand-back.
+
 ## 4. Verify before anything reaches anyone
 
 - Read the code behind every Blocking or Should-fix finding yourself, and behind any claim about a library or an external API (check the pinned dependency source and the vendor's spec, not memory). Mark each finding **confirmed**, **corrected** (a convention, a neighbour or a framework default explains it) or **wrong**.
-- With two reviewers: a finding both reached independently is strong. Where they disagree, decide from the code and say why; never average them. Name the source of each finding (Claude, Codex, both, you).
+- With more than one reviewer: a finding two reached independently is strong. Where they disagree, decide from the code and say why; never average them. Name the source of each finding (Claude, Codex, an OpenCode model such as DeepSeek or GLM, several, you).
 - Rule on each "declined to judge" line and each question for the author: drop it, keep it as a finding, or keep it as a question.
 - Rule on each point others raised: agree, agree with more detail, or disagree with the reason. Where your finding is the same as an earlier one, it becomes a reply in that thread, not a new comment.
 - Keep a findings file next to the brief (item, evidence, source, verdict), so a long triage survives context compaction.
