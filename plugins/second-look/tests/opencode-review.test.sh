@@ -214,14 +214,22 @@ mkdir -p "$tmp/not-a-repo"
 refuses "runs from a folder that is not a repository" "$run" "opencode/glm-5.3" "$tmp/not-a-repo"
 echo inside >"$checkout/docs/real.md"
 track_link ../docs/real.md docs/inside
+# Untracked links count too, unless git ignores them: those come from dependency installs.
 ln -s "$tmp/outside-secret" "$checkout/docs/untracked-out"
+refuses "skips an untracked link that git does not ignore" "$run" "opencode/glm-5.3"
+rm "$checkout/docs/untracked-out"
+ln -s ../.env "$checkout/docs/untracked-env.txt"
+refuses "skips an untracked link to .env that git does not ignore" "$run" "opencode/glm-5.3"
+rm "$checkout/docs/untracked-env.txt"
+echo "node_modules/" >"$checkout/.gitignore"
+mkdir -p "$checkout/node_modules/.bin"
+ln -s "$tmp/outside-secret" "$checkout/node_modules/.bin/tool"
 git -C "$checkout" add .env
 rm -f "$FAKE_ARGS_FILE"
 "$review" "$checkout" "$run" "opencode/glm-5.3" >/dev/null 2>&1
 [ $? -eq 0 ] && [ -e "$FAKE_ARGS_FILE" ] &&
-  pass "refuses a tracked symlink inside the checkout, an untracked one, or a tracked .env that is no link" ||
-  fail "refuses a tracked symlink inside the checkout, an untracked one, or a tracked .env that is no link" "did not run"
-rm "$checkout/docs/untracked-out"
+  pass "refuses a tracked symlink inside the checkout, a link in an ignored folder, or a tracked .env that is no link" ||
+  fail "refuses a tracked symlink inside the checkout, a link in an ignored folder, or a tracked .env that is no link" "did not run"
 
 # An allowed model runs, from the checkout, with the pinned agent and model, and writes its files.
 run=$(new_run r2)

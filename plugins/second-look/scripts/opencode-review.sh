@@ -58,30 +58,37 @@ top=$(git -C "$checkout_real" rev-parse --show-toplevel 2>/dev/null) ||
   die "checkout '$checkout' is not the top level of its repository"
 # OpenCode checks that a read stays in the project without resolving symlinks, so a change could
 # add a link to a file outside (a key, a secret), or to a file inside that the read rules deny
-# (docs/notes.txt -> ../.env). Check the tracked links only (mode 120000, submodules included):
-# they are what the change brings, and a walk over every link is slow on a pnpm checkout and
+# (docs/notes.txt -> ../.env). Check the tracked links (mode 120000, submodules included) and the
+# untracked links that git does not ignore. A walk over every link is slow on a pnpm checkout and
 # refuses the links that uv or venv make in .venv.
+# Links inside ignored folders (node_modules, .venv) are made by dependency installs. Once a
+# change's install scripts have run, this review protects nothing: never install the change's
+# dependencies inside the checkout before an OpenCode run.
 links=()
 while IFS= read -r -d '' entry; do
   case $entry in 120000\ *) links+=("$checkout_real/${entry#*$'\t'}") ;; esac
 done < <(git -C "$checkout_real" ls-files -s -z --recurse-submodules)
 wait "$!" || die "git ls-files failed in '$checkout'"
+while IFS= read -r -d '' path; do
+  [ -L "$checkout_real/$path" ] && links+=("$checkout_real/$path")
+done < <(git -C "$checkout_real" ls-files -o --exclude-standard -z)
+wait "$!" || die "git ls-files failed in '$checkout'"
 if [ ${#links[@]} -gt 0 ]; then
   for link in "${links[@]}"; do
-    [ -e "$link" ] || die "tracked symlink '$link' does not resolve"
+    [ -e "$link" ] || die "symlink '$link' does not resolve"
   done
   mapfile -t targets < <(realpath "${links[@]}")
-  wait "$!" || die "a tracked symlink does not resolve"
-  [ ${#targets[@]} -eq ${#links[@]} ] || die "tracked symlinks did not resolve one to one"
+  wait "$!" || die "a symlink does not resolve"
+  [ ${#targets[@]} -eq ${#links[@]} ] || die "symlinks did not resolve one to one"
   for i in "${!links[@]}"; do
     case ${targets[$i]} in
       "$checkout_real" | "$checkout_real"/*) ;;
-      *) die "tracked symlink '${links[$i]}' points outside the checkout" ;;
+      *) die "symlink '${links[$i]}' points outside the checkout" ;;
     esac
     name=${targets[$i]##*/}
     # The agent's read denies: *.env, *.env.* and *.secrets.env (which *.env already covers).
     case ${name,,} in
-      *.env | *.env.*) die "tracked symlink '${links[$i]}' points to a file the read rules deny" ;;
+      *.env | *.env.*) die "symlink '${links[$i]}' points to a file the read rules deny" ;;
     esac
   done
 fi
