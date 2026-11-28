@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Stand-in for opencode2 in tests: records its arguments and working folder, prints a recorded
+# event stream, and exits with the status the test asks for. It never calls a model.
+printf '%s\n' "$PWD" "$@" >"$FAKE_ARGS_FILE"
+cat "$FAKE_EVENTS"
+exit "${FAKE_STATUS:-0}"

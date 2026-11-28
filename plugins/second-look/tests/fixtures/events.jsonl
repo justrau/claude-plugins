@@ -1,0 +1,8 @@
+{"type":"step_start","timestamp":1,"sessionID":"ses_1","part":{"id":"prt_1","sessionID":"ses_1","messageID":"msg_1","type":"step-start"}}
+{"type":"text","timestamp":2,"sessionID":"ses_1","part":{"id":"prt_2","sessionID":"ses_1","messageID":"msg_1","type":"text","text":"Reading the brief.","time":{"start":1,"end":2}}}
+{"type":"step_finish","timestamp":3,"sessionID":"ses_1","part":{"id":"prt_3","sessionID":"ses_1","messageID":"msg_1","type":"step-finish","reason":"tool-calls","cost":0.0125,"tokens":{"input":1000,"output":200,"reasoning":50,"cache":{"read":800,"write":0}}}}
+not json at all
+{"type":"step_start","timestamp":4,"sessionID":"ses_1","part":{"id":"prt_4","sessionID":"ses_1","messageID":"msg_2","type":"step-start"}}
+{"type":"text","timestamp":5,"sessionID":"ses_1","part":{"id":"prt_5","sessionID":"ses_1","messageID":"msg_2","type":"text","text":"## Findings\n","time":{"start":4,"end":5}}}
+{"type":"text","timestamp":6,"sessionID":"ses_1","part":{"id":"prt_5","sessionID":"ses_1","messageID":"msg_2","type":"text","text":"1. An example finding.\n","time":{"start":4,"end":6}}}
+{"type":"step_finish","timestamp":7,"sessionID":"ses_1","part":{"id":"prt_6","sessionID":"ses_1","messageID":"msg_2","type":"step-finish","reason":"stop","cost":0.0075,"tokens":{"input":3000,"output":400,"reasoning":0,"cache":{"read":2500,"write":100}}}}
