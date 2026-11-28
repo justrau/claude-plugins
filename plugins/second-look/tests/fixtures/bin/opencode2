@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Stand-in for opencode2 in tests: records its arguments, working folder and every OPENCODE_*
+# variable it got, prints a recorded event stream, and exits with the status the test asks for.
+# It never calls a model.
+if [ "$*" = "--version" ]; then echo "2.4.2-stand-in"; exit 0; fi
+printf '%s\n' "$PWD" "$@" >"$FAKE_ARGS_FILE"
+env | grep '^OPENCODE_' | sort >"$FAKE_ENV_FILE"
+cat "$OPENCODE_CONFIG_DIR/agents/second-look-reviewer.md" >"$FAKE_ENV_FILE.agent" 2>/dev/null
+cat "$FAKE_EVENTS"
+exit "${FAKE_STATUS:-0}"

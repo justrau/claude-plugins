@@ -36,6 +36,8 @@ That's fine. Everything here is plain Markdown. Point your own Claude Code sessi
   - **Your own change:** it verifies the findings and fixes them on your branch.
   - **Someone else's PR:** it grades the findings with you, drafts the comments, and posts one GitHub review after you approve the wording. A project's `REVIEW.md` can set its own grade labels and posting rules.
   - Add `codex` to run a Codex reviewer in parallel, for example `/second-look:pr 133 codex`.
+  - Add `opencode` to run read-only OpenCode reviewers in parallel, one per model on an EU/US-hosted allowlist; it also logs their accuracy, cost and speed.
+    It needs bash 4.4 or later, OpenCode v2 as `opencode2`, coreutils `timeout`, `jq`, `git` and `realpath`. Sign in to Zen with `opencode2`'s own login: the script unsets `OPENCODE_API_KEY` with the other `OPENCODE_*` variables on purpose.
 - Ask "write a REVIEW.md for this repo", or run `/second-look:guide`.
 - Claude can also start the reviewer by itself, for example before opening a pull request.
 
@@ -55,6 +57,10 @@ plugins/second-look/
   skills/pr/rereview.md                  a later round on an already-reviewed PR
   skills/pr/check_anchors.py             checks a review payload's inline anchors before posting
   skills/guide/SKILL.md                  skill; installed as /second-look:guide
+  opencode/agents/second-look-reviewer.md  read-only OpenCode agent; the review script pins it
+  scripts/opencode-review.sh             one OpenCode review on an EU/US-hosted allowlisted model
+  scripts/opencode-review-log.sh         evaluation log of OpenCode reviews: append, summary
+  tests/opencode-review.test.sh          tests for both scripts, with a stand-in opencode2
 ```
 
 ### Copying instead of installing
