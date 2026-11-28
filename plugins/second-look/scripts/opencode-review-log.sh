@@ -33,10 +33,10 @@ append() {
     die "run $run_id is already in $LOG"
   fi
   jq -e '(.repo | type == "string") and (.diff_lines | type == "number")
-    and (.other_reviewers | type == "array") and (.models | type == "object" and length > 0)
+    and (.other_reviewers | type == "array" and all(type == "string")) and (.models | type == "object" and length > 0)
     and ([.models[] | (.confirmed, .false, .duplicate, .missed)
           | type == "number" and . >= 0 and . == floor] | all)' "$run_dir/grades.json" >/dev/null ||
-    die "grades.json lacks repo, diff_lines, other_reviewers, or whole counts per model"
+    die "grades.json lacks repo, diff_lines, other_reviewers (names only), or whole counts per model"
 
   local graded measured
   graded=$(jq -r '.models | keys[] | gsub("[/#]"; "-")' "$run_dir/grades.json" | sort)
@@ -48,7 +48,11 @@ append() {
   mkdir -p "$STATE_ROOT"
   jq -c --arg id "$run_id" --arg date "$(date +%F)" --argjson metrics "$metrics" '
     { date: $date, run_id: $id, repo, diff_lines, other_reviewers,
-      models: [ $metrics[] as $m | $m + (.models[$m.model] | {confirmed, false, duplicate, missed}) ] }' \
+      models: [ $metrics[] as $m
+        | ($m | { model, opencode_version, exit_status, wall_s, steps,
+                  tokens: (.tokens | {input, output, reasoning, cache_read, cache_write}),
+                  cost_usd, report_chars })
+          + (.models[$m.model] | {confirmed, false, duplicate, missed}) ] }' \
     "$run_dir/grades.json" >>"$LOG"
   echo "added $run_id to $LOG"
 }

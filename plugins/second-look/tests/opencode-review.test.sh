@@ -232,9 +232,16 @@ printf '%s\n' '{"repo":"example","diff_lines":120,"other_reviewers":["claude"],"
 printf '%s\n' '{"repo":"example","diff_lines":120,"other_reviewers":["claude"],"models":{"opencode/deepseek-v4.1-flash#high":{"confirmed":2,"false":1,"duplicate":0}}}' >"$run/grades.json"
 "$log" append "$run" >/dev/null 2>&1
 [ $? -eq 2 ] && [ ! -e "$state/log.jsonl" ] && pass "logs grades without a missed count" || fail "logs grades without a missed count" "not refused"
+printf '%s\n' '{"repo":"example","diff_lines":120,"other_reviewers":["claude",{"text":"a finding"}],"models":{"opencode/deepseek-v4.1-flash#high":{"confirmed":2,"false":1,"duplicate":0,"missed":1}}}' >"$run/grades.json"
+"$log" append "$run" >/dev/null 2>&1
+[ $? -eq 2 ] && [ ! -e "$state/log.jsonl" ] && pass "logs other reviewers that are not names" || fail "logs other reviewers that are not names" "not refused"
+# A field the metrics file should not hold (here, report text) stays out of the row.
+jq '. + {report_text: "a finding"}' "$run/metrics-$slug.json" >"$tmp/metrics.json" && mv "$tmp/metrics.json" "$run/metrics-$slug.json"
 printf '%s\n' '{"repo":"example","diff_lines":120,"other_reviewers":["claude"],"models":{"opencode/deepseek-v4.1-flash#high":{"confirmed":2,"false":1,"duplicate":0,"missed":1}}}' >"$run/grades.json"
 "$log" append "$run" >/dev/null 2>&1
-[ $? -eq 0 ] && [ "$(jq -c '[.run_id, .models[0].model, .models[0].confirmed, .models[0].cost_usd]' "$state/log.jsonl")" = '["r2","opencode/deepseek-v4.1-flash#high",2,0.02]' ] &&
+[ $? -eq 0 ] && [ "$(jq -c '.models[0] | keys' "$state/log.jsonl")" = '["confirmed","cost_usd","duplicate","exit_status","false","missed","model","opencode_version","report_chars","steps","tokens","wall_s"]' ] &&
+  pass "copies every metrics field into the row" || fail "copies every metrics field into the row" "$(cat "$state/log.jsonl" 2>/dev/null)"
+[ "$(jq -c '[.run_id, .models[0].model, .models[0].confirmed, .models[0].cost_usd]' "$state/log.jsonl")" = '["r2","opencode/deepseek-v4.1-flash#high",2,0.02]' ] &&
   pass "appends one row with metrics and grades" || fail "appends one row with metrics and grades" "$(cat "$state/log.jsonl" 2>/dev/null)"
 "$log" append "$run" >/dev/null 2>&1
 [ $? -eq 2 ] && [ "$(wc -l <"$state/log.jsonl" | tr -d ' ')" = 1 ] && pass "appends the same run twice" || fail "appends the same run twice" "not refused"
