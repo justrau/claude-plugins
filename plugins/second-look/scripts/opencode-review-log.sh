@@ -8,6 +8,14 @@
 # append reads <run-dir>/grades.json, written by the lead after verifying the findings:
 #   { "repo": "<folder name>", "diff_lines": 420, "other_reviewers": ["claude", "codex"],
 #     "models": { "<model id as run>": { "confirmed": 3, "false": 1, "duplicate": 0, "missed": 2 } } }
+# The counts per model:
+#   confirmed  findings of this model that the lead confirmed
+#   false      findings of this model that are wrong
+#   duplicate  repeats of a finding inside this model's own report
+#   missed     real findings from the other reviewers, or from the other OpenCode model, that this
+#              model did not report. Nits do not count, and neither do findings that need a sibling
+#              repository or a dependency source: this reviewer cannot read outside the checkout and
+#              its run dir.
 # and metrics-<slug>.json of each model, written by opencode-review.sh. The row holds no finding
 # text, no code and no paths inside the repository.
 set -euo pipefail
