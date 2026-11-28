@@ -99,6 +99,8 @@ prompt="Read $run_real/brief.md and follow it. Your final message is the report.
 
 start=$(date +%s)
 status=0
+# --title is required: without it, OpenCode asks a small model for a session title, and that
+# model is not on the allowlist.
 (cd "$checkout_real" && exec env "${scrub[@]}" "${our_env[@]}" \
   timeout "$TIMEOUT_S" opencode2 run --standalone --agent second-look-reviewer -m "$model" \
   --title "review $run_id" --format json "$prompt") \

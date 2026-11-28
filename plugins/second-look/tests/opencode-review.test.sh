@@ -56,7 +56,8 @@ refuses "matches a substring of the joined list" "$run" "opencode/glm-5.3 openco
 refuses "accepts an unknown variant" "$run" "opencode/glm-5.3#xhigh"
 refuses "accepts an empty variant" "$run" "opencode/glm-5.3#"
 refuses "accepts a second variant" "$run" "opencode/glm-5.3#high#max"
-refuses "accepts a run dir outside the state folder" "$tmp" "opencode/glm-5.3"
+mkdir -p "$tmp/outside-run"; echo brief >"$tmp/outside-run/brief.md"
+refuses "accepts a run dir outside the state folder" "$tmp/outside-run" "opencode/glm-5.3"
 mkdir -p "$state/r1/nested"; echo brief >"$state/r1/nested/brief.md"
 refuses "accepts a run dir nested deeper than one level" "$state/r1/nested" "opencode/glm-5.3"
 ln -s "$tmp" "$state/link"; echo brief >"$tmp/brief.md"
@@ -126,8 +127,12 @@ slug="opencode-deepseek-v4.1-flash-high"
 [ "$status" -eq 0 ] && pass "allowed model with a variant runs" || fail "allowed model with a variant runs" "status $status"
 args=$(cat "$FAKE_ARGS_FILE" 2>/dev/null)
 [ "$(sed -n 1p <<<"$args")" = "$checkout_real" ] && pass "runs from the checkout" || fail "runs from the checkout" "cwd $(sed -n 1p <<<"$args")"
-grep -qx -- "--agent" <<<"$args" && grep -qx "second-look-reviewer" <<<"$args" && grep -qx -- "opencode/deepseek-v4.1-flash#high" <<<"$args" &&
-  grep -qx -- "--format" <<<"$args" && pass "passes the pinned agent, model and json format" || fail "passes the pinned agent, model and json format" "$args"
+after() { awk -v flag="$1" 'found { print; exit } $0 == flag { found = 1 }' <<<"$args"; }
+[ "$(after --agent)" = "second-look-reviewer" ] && pass "drops the pinned agent" || fail "drops the pinned agent" "$args"
+[ "$(after -m)" = "opencode/deepseek-v4.1-flash#high" ] && pass "drops the model" || fail "drops the model" "$args"
+[ "$(after --format)" = "json" ] && pass "drops the json format" || fail "drops the json format" "$args"
+[ "$(after --title)" = "review r2" ] && pass "drops the title, so OpenCode asks a small model for one" ||
+  fail "drops the title, so OpenCode asks a small model for one" "$args"
 config_dir="$(cd "$run" && pwd -P)/opencode"
 env_seen=$(cat "$FAKE_ENV_FILE" 2>/dev/null)
 [ "$env_seen" = "$(printf 'OPENCODE_CONFIG_DIR=%s\nOPENCODE_CONFIG_PROJECT_DISABLE=1\nOPENCODE_DISABLE_CLAUDE_CODE=1\nOPENCODE_DISABLE_PROJECT_CONFIG=1' "$config_dir")" ] &&
@@ -182,8 +187,16 @@ printf '%s\n' '{"repo":"example","diff_lines":120,"other_reviewers":["claude"],"
   pass "appends one row with metrics and grades" || fail "appends one row with metrics and grades" "$(cat "$state/log.jsonl" 2>/dev/null)"
 "$log" append "$run" >/dev/null 2>&1
 [ $? -eq 2 ] && [ "$(wc -l <"$state/log.jsonl" | tr -d ' ')" = 1 ] && pass "appends the same run twice" || fail "appends the same run twice" "not refused"
-row=$("$log" summary | sed -n 3p)
-[ "$row" = '| `opencode/deepseek-v4.1-flash` | 1 | 2 | 1 | 0 | 1 | 67% | 67% | $0.02 | '"$(jq .wall_s "$run/metrics-$slug.json")"' s | 2 |' ] &&
-  pass "summary groups variants under the model" || fail "summary groups variants under the model" "$row"
+# A second review of the same model with another variant, and counts where precision (6/7) and
+# recall (6/10) differ.
+run4=$(new_run r4)
+"$review" "$checkout" "$run4" "opencode/deepseek-v4.1-flash#max" >/dev/null 2>&1
+printf '%s\n' '{"repo":"example","diff_lines":80,"other_reviewers":["claude","codex"],"models":{"opencode/deepseek-v4.1-flash#max":{"confirmed":4,"false":0,"duplicate":1,"missed":3}}}' >"$run4/grades.json"
+"$log" append "$run4" >/dev/null 2>&1
+wall=$(jq -s 'map(.wall_s) | min' "$run/metrics-$slug.json" "$run4/metrics-opencode-deepseek-v4.1-flash-max.json")
+summary=$("$log" summary)
+[ "$(wc -l <<<"$summary" | tr -d ' ')" = 3 ] && [ "$(sed -n 3p <<<"$summary")" = '| `opencode/deepseek-v4.1-flash` | 2 | 6 | 1 | 1 | 4 | 86% | 60% | $0.02 | '"$wall"' s | 2 |' ] &&
+  pass "summary lists each variant as its own model, or swaps precision and recall" ||
+  fail "summary lists each variant as its own model, or swaps precision and recall" "$summary"
 
 [ "$fails" -eq 0 ] && echo "all passed" || { echo "$fails failed"; exit 1; }
