@@ -25,7 +25,7 @@ permissions:
     resource: "*"
     effect: deny
   - action: external_directory
-    resource: "__RUN_DIR__/*"
+    resource: "__RUN_DIR__/brief.md"
     effect: allow
 ---
 

@@ -92,11 +92,16 @@ rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with a template that has the placeholder twice" ||
   fail "runs with a template that has the placeholder twice" "not refused"
-{ sed 's|"__RUN_DIR__/\*"|"*"|' "$here/../opencode/agents/second-look-reviewer.md"; echo "# __RUN_DIR__"; } >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+{ sed 's|"__RUN_DIR__/brief.md"|"*"|' "$here/../opencode/agents/second-look-reviewer.md"; echo "# __RUN_DIR__"; } >"$tmp/copy/opencode/agents/second-look-reviewer.md"
 rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an agent that does not allow its run dir" ||
   fail "runs with an agent that does not allow its run dir" "not refused"
+sed 's|"__RUN_DIR__/brief.md"|"__RUN_DIR__/*"|' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
+rm -f "$FAKE_ARGS_FILE"
+"$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
+[ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with an agent that may read the whole run dir" ||
+  fail "runs with an agent that may read the whole run dir" "not refused"
 awk '!d && /effect: deny/ { sub(/deny/, "allow"); d = 1 } 1' "$here/../opencode/agents/second-look-reviewer.md" >"$tmp/copy/opencode/agents/second-look-reviewer.md"
 rm -f "$FAKE_ARGS_FILE"
 "$tmp/copy/scripts/opencode-review.sh" "$checkout" "$run" "opencode/glm-5.3" 2>/dev/null
@@ -169,12 +174,13 @@ case $config_dir in "$(cd "$run" && pwd -P)"/opencode.??????) ;; *) config_dir="
   [ "$(sed -n 2,3p <<<"$args")" = "$(printf 'run\n--standalone')" ] &&
   pass "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" ||
   fail "loads the checkout's own OpenCode config or the caller's OPENCODE_* variables" "$env_seen / $(sed -n 2,3p <<<"$args")"
-# The generated agent may read only this run dir outside the checkout, not earlier runs.
+# Outside the checkout, the generated agent may read only this run's brief: not earlier runs, nor
+# the other model's report and events, nor its own config dir.
 gen="$config_dir/agents/second-look-reviewer.md"
 ext=$(awk '/^ *- action: external_directory/ { x = 1; next } x && /resource:/ { r = $2 } x && /effect: allow/ { print r } /^ *- action:/ { x = 0 }' "$gen" 2>/dev/null | tr -d '"')
-[ "$ext" = "$(cd "$run" && pwd -P)/*" ] && ! grep -q '__RUN_DIR__' "$gen" &&
-  sed '/__RUN_DIR__/d' "$here/../opencode/agents/second-look-reviewer.md" | diff -q - <(grep -v -F "$(cd "$run" && pwd -P)/*" "$gen") >/dev/null &&
-  pass "agent may read every earlier run" || fail "agent may read every earlier run" "allows: $ext"
+[ "$ext" = "$(cd "$run" && pwd -P)/brief.md" ] && ! grep -q '__RUN_DIR__' "$gen" &&
+  sed '/__RUN_DIR__/d' "$here/../opencode/agents/second-look-reviewer.md" | diff -q - <(grep -v -F "$(cd "$run" && pwd -P)/brief.md" "$gen") >/dev/null &&
+  pass "agent may read more than this run's brief" || fail "agent may read more than this run's brief" "allows: $ext"
 [ "$(stat -f %Lp "$run" 2>/dev/null || stat -c %a "$run")" = 700 ] &&
   pass "leaves the run dir open to other users" || fail "leaves the run dir open to other users" "$(stat -f %Lp "$run")"
 [ "$(cat "$run/report-$slug.md")" = "$(printf '## Findings\n1. An example finding.')" ] &&

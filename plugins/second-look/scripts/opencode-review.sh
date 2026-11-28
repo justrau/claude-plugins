@@ -71,7 +71,8 @@ run_real=$(cd "$run_dir" && pwd -P)
 # project config off, take config (and the agent) only from a folder this script writes in the run
 # dir, and run standalone: the background service would ignore these variables.
 # The plugin's agent file is a template: its one __RUN_DIR__ becomes this run dir, so the model
-# can read this run's brief but not the briefs and reports of earlier runs.
+# can read this run's brief.md and nothing else outside the checkout: not earlier runs, nor the
+# other model's report and events, nor its own config dir.
 template="$(cd "$(dirname "$0")/.." && pwd -P)/opencode/agents/second-look-reviewer.md"
 [ -f "$template" ] || die "agent file $template is missing"
 [ "$(grep -o '__RUN_DIR__' "$template" | wc -l | tr -d ' ')" = 1 ] ||
@@ -91,8 +92,8 @@ mv "$agent_tmp" "$agent_file"
 first_rule=$(awk '/^permissions:/ { p = 1; next } p && n < 3 { gsub(/ /, ""); printf "%s ", $0; n++ }' "$agent_file")
 [ "$first_rule" = '-action:"*" resource:"*" effect:deny ' ] ||
   die "agent file $agent_file does not start its permissions with the deny-all rule"
-if [ "$(grep -cxF "    resource: \"$run_real/*\"" "$agent_file")" != 1 ] || grep -q '__RUN_DIR__' "$agent_file"; then
-  die "agent file $agent_file does not allow this run dir exactly once"
+if [ "$(grep -cxF "    resource: \"$run_real/brief.md\"" "$agent_file")" != 1 ] || grep -q '__RUN_DIR__' "$agent_file"; then
+  die "agent file $agent_file does not allow this run's brief.md exactly once"
 fi
 
 # The caller's environment is untrusted too: OPENCODE_CONFIG, OPENCODE_CONFIG_CONTENT and others
