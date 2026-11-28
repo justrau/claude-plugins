@@ -36,6 +36,11 @@ if [ "$model" != "$base" ]; then
     die "variant in '$model' is not one of: ${ALLOWED_VARIANTS[*]}"
 fi
 
+# Preflight: a missing tool must stop the review before the paid run, not halfway through it.
+for tool in opencode2 timeout jq; do
+  command -v "$tool" >/dev/null || die "$tool is not on PATH (needs OpenCode v2 as opencode2, coreutils timeout, jq)"
+done
+
 [ -d "$checkout" ] || die "checkout '$checkout' is not a directory"
 checkout_real=$(cd "$checkout" && pwd -P)
 # Only a repository's top level, so $HOME or a parent folder cannot pass as a checkout.
@@ -97,6 +102,8 @@ report="$run_real/report-$slug.md"
 run_id=$(basename "$run_real")
 prompt="Read $run_real/brief.md and follow it. Your final message is the report."
 
+version=$(cd "$run_real" && env "${scrub[@]}" "${our_env[@]}" opencode2 --version 2>/dev/null | head -n 1) || true
+
 start=$(date +%s)
 status=0
 # --title is required: without it, OpenCode asks a small model for a session title, and that
@@ -112,11 +119,11 @@ jq -Rnr '[inputs | fromjson? | select(type == "object" and .type == "text")] as 
   | ($t | last | .part.messageID) as $m
   | [$t[] | select(.part.messageID == $m) | .part.text] | join("")' "$events" >"$report"
 
-jq -Rn --arg model "$model" --argjson status "$status" --argjson wall "$wall" \
+jq -Rn --arg model "$model" --arg version "${version:-unknown}" --argjson status "$status" --argjson wall "$wall" \
   --argjson report_chars "$(wc -c <"$report" | tr -d ' ')" '
   [inputs | fromjson? | select(type == "object" and .type == "step_finish") | .part] as $s
   | def total(f): [$s[] | f // 0] | add // 0;
-  { model: $model, exit_status: $status, wall_s: $wall, steps: ($s | length),
+  { model: $model, opencode_version: $version, exit_status: $status, wall_s: $wall, steps: ($s | length),
     tokens: { input: total(.tokens.input), output: total(.tokens.output),
               reasoning: total(.tokens.reasoning), cache_read: total(.tokens.cache.read),
               cache_write: total(.tokens.cache.write) },

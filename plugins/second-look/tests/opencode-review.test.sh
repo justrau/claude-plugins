@@ -92,6 +92,24 @@ rm -f "$FAKE_ARGS_FILE"
 [ $? -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && pass "runs with a template that has the placeholder twice" ||
   fail "runs with a template that has the placeholder twice" "not refused"
 
+# Preflight: a missing tool stops the review before the paid run, not halfway through it.
+bin_without() {
+  local d="$tmp/bin-without-$1" t p
+  mkdir -p "$d"
+  for t in bash env git find realpath grep wc tr date dirname basename chmod mkdir cat sort sed head awk rm stat jq timeout; do
+    [ "$t" = "$1" ] && continue
+    p=$(command -v "$t") && ln -sf "$p" "$d/$t"
+  done
+  [ "$1" = opencode2 ] || ln -sf "$here/fixtures/bin/opencode2" "$d/opencode2"
+  echo "$d"
+}
+for tool in opencode2 timeout jq; do
+  rm -f "$FAKE_ARGS_FILE"
+  err=$(PATH=$(bin_without "$tool") "$review" "$checkout" "$run" "opencode/glm-5.3" 2>&1 >/dev/null); status=$?
+  [ "$status" -eq 2 ] && [ ! -e "$FAKE_ARGS_FILE" ] && grep -q "$tool" <<<"$err" &&
+    pass "starts the run without $tool" || fail "starts the run without $tool" "status $status: $err"
+done
+
 # The checkout is untrusted: OpenCode does not resolve symlinks when it checks that a read stays
 # in the project, so a link to a file outside would leak it. Only the repository's top level runs.
 echo secret >"$tmp/outside-secret"
@@ -150,6 +168,7 @@ ext=$(awk '/^ *- action: external_directory/ { x = 1; next } x && /resource:/ { 
 [ "$(cat "$run/report-$slug.md")" = "$(printf '## Findings\n1. An example finding.')" ] &&
   pass "report keeps only the last message's text" || fail "report keeps only the last message's text" "$(cat "$run/report-$slug.md")"
 m="$run/metrics-$slug.json"
+[ "$(jq -r .opencode_version "$m")" = "2.4.2-stand-in" ] && pass "metrics omit the OpenCode version" || fail "metrics omit the OpenCode version" "$(cat "$m")"
 [ "$(jq -c '[.steps, .tokens.input, .tokens.output, .tokens.cache_read, .tokens.cache_write, .cost_usd, .exit_status]' "$m")" = "[2,4000,600,3300,100,0.02,0]" ] &&
   pass "metrics sum every step and skip non-json lines" || fail "metrics sum every step and skip non-json lines" "$(cat "$m")"
 

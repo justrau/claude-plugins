@@ -37,6 +37,7 @@ That's fine. Everything here is plain Markdown. Point your own Claude Code sessi
   - **Someone else's PR:** it grades the findings with you, drafts the comments, and posts one GitHub review after you approve the wording. A project's `REVIEW.md` can set its own grade labels and posting rules.
   - Add `codex` to run a Codex reviewer in parallel, for example `/second-look:pr 133 codex`.
   - Add `opencode` to run read-only OpenCode reviewers in parallel, one per model on an EU/US-hosted allowlist; it also logs their accuracy, cost and speed.
+    It needs OpenCode v2 as `opencode2`, signed in to Zen, coreutils `timeout` and `jq`.
 - Ask "write a REVIEW.md for this repo", or run `/second-look:guide`.
 - Claude can also start the reviewer by itself, for example before opening a pull request.
 
